@@ -1,0 +1,33 @@
+# Python
+*.pyc
+*.pyo
+__pycache__/
+.pytest_cache/
+.ropeproject/
+.pydevproject/
+.idea/
+.vscode/
+
+# Large media files
+*.jpg
+*.jpeg
+*.png
+*.gif
+*.mp4
+*.avi
+
+# Generated files
+reports/
+*.html  
+scenarios/
+*.json
+build/
+dist/
+*.egg
+*.so
+*.dll
+*.dylib
+
+# Virtual environment
+venv/
+env/

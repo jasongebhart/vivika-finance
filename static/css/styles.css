@@ -1,0 +1,184 @@
+/* Define custom colors and font family */
+:root {
+    --primary-color: #4CAF50; /* Original primary color */
+    --primary-color-soft: #66BB6A; /* Softer shade of green */
+    --secondary-color: #f1f1f1; /* Secondary background color */
+    --font-family: 'Arial, sans-serif'; /* Default font family */
+}
+
+/* Base styles for the entire document */
+body {
+    font-family: var(--font-family); /* Apply custom font family */
+    margin: 0;
+    padding: 0;
+    background-color: var(--secondary-color); /* Set secondary background color */
+    color: #333; /* Default text color */
+}
+
+/* Styles for headings */
+h1, h2 {
+    color: var(--primary-color); /* Set primary color for headings */
+}
+
+h1 {
+    text-align: center; /* Center-align h1 headings */
+    margin: 10px 0; /* Add vertical margin to h1 headings */
+}
+
+/* Styles for h2 headings */
+h2 {
+    display: flex; /* Use flexbox for layout */
+    justify-content: space-between; /* Align items to the left and right */
+    align-items: center; /* Align items vertically */
+    background-color: var(--primary-color-soft); /* Set background color */
+    color: white; /* Set text color */
+    padding: 5px; /* Add padding */
+    border-radius: 5px; /* Add border radius */
+    cursor: pointer; /* Change cursor to pointer */
+}
+
+.header-container {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr); /* Two columns */
+    gap: 3px; /* Add space between headers */
+}
+
+.header-grid {
+    display: flex;
+    flex-direction: row;
+    justify-content: space-between;
+}
+
+.header {
+    background-color: #f1f1f1;
+    padding: 7px;
+    border-radius: 5px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+/* Styles for toggle buttons */
+.toggle-button {
+    background: none; /* Remove background */
+    border: none; /* Remove border */
+    color: white; /* Set text color */
+    font-size: 16px; /* Set font size */
+    cursor: pointer; /* Change cursor to pointer */
+}
+
+/* Styles for table containers */
+.table-container {
+    overflow-x: auto; /* Allow horizontal scrolling */
+    display: grid; /* Use grid layout */
+    grid-template-columns: 1fr 1fr; /* Two equal columns */
+    gap: 2px; /* Add space between tables */
+}
+
+/* Base styles for tables */
+table {
+    width: 100%; /* Set table width to 100% */
+    border-collapse: collapse; /* Collapse table borders */
+    margin: 5px 0; /* Add vertical margin */
+    table-layout: auto; /* Allow table to adjust column widths based on content */
+}
+
+/* Styles for table cells */
+th, td {
+    border: 1px solid #ddd; /* Set border */
+    padding: 8px; /* Add padding */
+    line-height: 1.4; /* Adjust line height */
+    white-space: nowrap; /* Prevent text from wrapping */
+    min-width: 150px; /* Set a minimum width for the cells */
+}
+
+/* Styles for table header cells */
+th {
+    background-color: var(--primary-color-soft); /* Set background color */
+    color: white; /* Set text color */
+}
+
+/* Hide hidden section content */
+.section-content.hidden {
+    display: none; /* Hide content */
+}
+
+/* Responsive styles for smaller screens */
+@media (max-width: 800px) {
+    .table-container {
+        grid-template-columns: 1fr; /* Switch to single column layout */
+    }
+}
+
+@media (max-width: 600px) {
+    h2 {
+        font-size: 1.2em; /* Reduce font size for h2 headings */
+    }
+    
+    th, td {
+        padding: 6px; /* Reduce padding for table cells */
+    }
+}
+
+/* Print-specific styles */
+@media print {
+    body {
+        background-color: white; /* Set background color to white for printing */
+        column-count: 1;
+        column-gap: 40px; /* Adjust the gap between columns as needed */
+        padding: 10px; /* Add padding to avoid content touching the edges */
+    }
+
+    h2 {
+        background-color: transparent; /* Remove background color for h2 headings */
+        color: black; /* Set text color to black for printing */
+        padding: 0; /* Remove padding for h2 headings */
+    }
+
+    .table-container {
+        display: block; /* Change display to block for table containers */
+        width: 100%; /* Ensure tables do not exceed column width */
+        margin: 5px 0; /* Add some margin for table containers */
+        page-break-inside: avoid; /* Prevent tables from breaking across pages */
+        overflow: hidden; /* Prevent overflow */
+    }
+
+    table {
+        width: 100%; /* Ensure table width is 100% of the container */
+        border-collapse: collapse; /* Collapse borders for a cleaner look */
+        margin: 0; /* Remove margin for tables */
+    }
+
+    th, td {
+        border: 1px solid black; /* Set border color to black for table cells */
+        word-wrap: break-word; /* Enable word wrapping for table cells */
+        padding: 5px; /* Add some padding for readability */
+        max-width: 100%; /* Ensure cells do not overflow */
+    }
+
+    .header {
+        background-color: white; /* Ensure headers have a white background */
+        box-shadow: none; /* Remove box-shadow for print */
+    }
+
+    /* Make sure elements do not overflow the columns */
+    .table-container, table, th, td {
+        max-width: 100%;
+        box-sizing: border-box;
+    }
+
+    /* Ensure that large tables are not broken into two columns */
+    .table-container {
+        break-inside: avoid-column; /* Prevent table container from breaking inside a column */
+    }
+
+    /* Ensure tables are properly handled within columns */
+    table {
+        page-break-inside: avoid; /* Prevent tables from breaking inside a page */
+        break-inside: avoid; /* Prevent breaking inside a column */
+    }
+
+    /* Ensure that table rows do not break between columns */
+    tr {
+        break-inside: avoid; /* Prevent row from breaking inside a column */
+        page-break-inside: avoid; /* Prevent row from breaking inside a page */
+    }
+} 
