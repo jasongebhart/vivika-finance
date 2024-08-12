@@ -13,6 +13,17 @@ def parse_arguments():
     parser.add_argument('config_file_path', nargs='?', default='config.finance.json', help='Path to the configuration file')
     return parser.parse_args()
 
+def load_config(config_file_path):
+    try:
+        with open(config_file_path, 'r') as f:
+            return json.load(f)
+    except FileNotFoundError:
+        print(f"Config file '{config_file_path}' not found.")
+        sys.exit(1)
+    except json.JSONDecodeError:
+        print(f"Invalid JSON format in '{config_file_path}'.")
+        sys.exit(1)
+        
 def calculate_future_value(principal, contribution, increase_contribution, interest_rate, years):
     """
     Calculates the future value of an investment with either an increasing annual contribution
@@ -260,17 +271,6 @@ class House:
             float: The future value of the investment after the specified years.
         """
         return calculate_future_value(invest_capital, 0, 0, interest_rate, years)
-
-def load_config(config_file_path):
-    try:
-        with open(config_file_path, 'r') as f:
-            return json.load(f)
-    except FileNotFoundError:
-        print(f"Config file '{config_file_path}' not found.")
-        sys.exit(1)
-    except json.JSONDecodeError:
-        print(f"Invalid JSON format in '{config_file_path}'.")
-        sys.exit(1)
 
 
 def calculate_house_values(current_house, config_data):
