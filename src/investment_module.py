@@ -853,27 +853,6 @@ def adjust_config(config_data, years_override, include_ski_team, ski_team_data, 
         config_data["highschool_expenses"] = highschool_expenses_data
 
 
-def adjust_configOLD(config_data, years_override, include_ski_team, ski_team_data, include_baseball_team, baseball_team_data, include_highschool_expenses, highschool_expenses_data):
-    """
-    Adjusts the configuration dictionary based on the provided parameters.
-
-    Parameters:
-    config_data (dict): The configuration dictionary to adjust.
-    years_override (int or None): The years override value.
-    include_ski_team (str): Option to include, exclude, or use defined ski team data.
-    ski_team_data (dict): The ski team data to include.
-    include_baseball_team (str): Option to include, exclude, or use defined baseball team data.
-    baseball_team_data (dict): The baseball team data to include.
-    include_highschool_expenses (str): Option to include, exclude, or use defined high school expenses data.
-    highschool_expenses_data (dict): The high school expenses data to include.
-    """
-    if years_override is not None:
-        config_data["years"] = years_override
-
-    config_data["SKI_TEAM"] = {} if include_ski_team == "exclude" else (config_data["SKI_TEAM"] if include_ski_team == "use_defined" else ski_team_data)
-    config_data["BASEBALL_TEAM"] = {} if include_baseball_team == "exclude" else (config_data["BASEBALL_TEAM"] if include_baseball_team == "use_defined" else baseball_team_data)
-    config_data["highschool_expenses"] = [0] * 9 if include_highschool_expenses == "exclude" else (config_data["highschool_expenses"] if include_highschool_expenses == "use_defined" else highschool_expenses_data)
-
 def prepare_scenarios_data(scenarios_data):
 
     return {
