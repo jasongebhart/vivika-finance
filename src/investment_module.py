@@ -1,3 +1,4 @@
+import logging
 import sys  # import the sys module
 from pathlib import Path
 import json
@@ -8,22 +9,35 @@ from utils import format_currency
 
 CAPITAL_GAIN_EXCLUSION = 500000
 
+def create_log_directory():
+    log_dir = Path(__file__).parent.parent / "logs"
+    log_dir.mkdir(parents=True, exist_ok=True)
+    return log_dir
+
+def setup_logging(log_dir):
+    log_file_path = log_dir / 'getfinance.log'
+    logging.basicConfig(filename=log_file_path, level=logging.DEBUG)
+
 def parse_arguments():
     parser = argparse.ArgumentParser(description='Process financial configuration.')
     parser.add_argument('config_file_path', nargs='?', default='config.finance.json', help='Path to the configuration file')
     return parser.parse_args()
 
 def load_config(config_file_path):
+    logging.debug(f"Loading configuration from: {config_file_path}")
     try:
         with open(config_file_path, 'r') as f:
             return json.load(f)
     except FileNotFoundError:
-        print(f"Config file '{config_file_path}' not found.")
+        logging.error(f"Config file '{config_file_path}' not found.")
         sys.exit(1)
     except json.JSONDecodeError:
-        print(f"Invalid JSON format in '{config_file_path}'.")
+        logging.error(f"Invalid JSON format in '{config_file_path}'.")
         sys.exit(1)
-        
+    else:
+        logging.info("Configuration loaded successfully")
+        return data
+
 def calculate_future_value(principal, contribution, increase_contribution, interest_rate, years):
     """
     Calculates the future value of an investment with either an increasing annual contribution

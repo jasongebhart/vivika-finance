@@ -2,6 +2,8 @@ import investment_module
 import report_html_generator
 
 def main():
+    log_dir = investment_module.create_log_directory()
+    investment_module.setup_logging(log_dir)
     scenarios_data = investment_module.parse_and_load_config()
     # print(f"Loaded scenarios_data: {scenarios_data}")
     
