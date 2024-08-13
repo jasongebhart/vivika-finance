@@ -53,12 +53,16 @@ def calculate_future_value(principal, contribution, increase_contribution, inter
     Returns:
         The future value of the investment after the specified years.
     """
+    logging.debug(f"Calculating future value with: principal={principal}, contribution={contribution}, "
+                 f"increase_contribution={increase_contribution}, interest_rate={interest_rate}, years={years}")
     future_value = principal
     for year in range(years):
         # Calculate contribution for the year
         yearly_contribution = contribution + year * increase_contribution if increase_contribution > 0 else contribution
+        logging.debug(f"Year {year+1}: yearly_contribution={yearly_contribution}")
         future_value *= (1 + interest_rate)  # Apply interest
         future_value += yearly_contribution  # Add contribution
+        logging.debug(f"Year {year+1}: future_value={future_value}")
     return future_value
 
 def calculate_future_value_byrate(present_value, annual_growth_rate, years):
@@ -73,7 +77,9 @@ def calculate_future_value_byrate(present_value, annual_growth_rate, years):
     Returns:
         float: The future value of the investment.
     """
+    logging.debug(f"Calculating future value for: present_value={present_value}, annual_growth_rate={annual_growth_rate}, years={years}")
     future_value = present_value * (1 + annual_growth_rate) ** years
+    logging.debug(f"Calculated future value: {future_value}")
     return future_value
 
 def calculate_total_expense(config_data):
@@ -87,6 +93,7 @@ def calculate_total_expense(config_data):
         tuple: A tuple containing total expense, high school total expense, and college total expense.
                (total_expense, highschool_total_expense, college_total_expense)
     """
+    logging.debug(f"Calculating total expenses for config_data: years={config_data.get('years', 0)}, college_expenses_length={len(config_data.get('college_expenses', []))}, highschool_expenses_length={len(config_data.get('highschool_expenses', []))}")
     total_expense = 0
     total_highschool_expense = 0
     total_college_expense = 0
@@ -105,6 +112,9 @@ def calculate_total_expense(config_data):
             total_highschool_expense += highschool_expense
             total_expense += college_expense + highschool_expense
 
+            logging.debug(f"Year {i+1}: college_expense={college_expense}, highschool_expense={highschool_expense}")
+    
+    logging.info(f"Total expense: {total_expense}, total_highschool_expense: {total_highschool_expense}, total_college_expense: {total_college_expense}")
     return total_expense, total_highschool_expense, total_college_expense
 
 
@@ -125,11 +135,15 @@ def calculate_balance(balance, interest_rate, years, yearly_gain=0, gains=[], ex
     Returns:
         float: The ending balance after considering compounding interest and net gains/expenses.
     """
+    logging.debug(f"Calculating balance with: balance={balance}, interest_rate={interest_rate}, years={years}, "
+                 f"yearly_gain={yearly_gain}, gains={gains}, expenses={expenses}, yearly_expense={yearly_expense}")
     for year in range(years):
         interest = balance * interest_rate
         net_gain = yearly_gain if yearly_gain != 0 else gains[year] if year < len(gains) else 0
         net_expense = expenses[year] if year < len(expenses) else 0
         balance += interest + net_gain - net_expense - yearly_expense
+
+        logging.debug(f"Year {year+1}: balance={balance}, interest={interest}, net_gain={net_gain}, net_expense={net_expense}")
     return balance
 
 
@@ -144,7 +158,12 @@ def calculate_expenses(college_expenses, highschool_expenses):
     Returns:
         list of float: The total expenses for each year.
     """
-    return [college + highschool for college, highschool in zip(college_expenses, highschool_expenses)]
+    logging.debug(f"Calculating total expenses with college_expenses: {college_expenses}, highschool_expenses: {highschool_expenses}")
+    total_expenses = [college + highschool for college, highschool in zip(college_expenses, highschool_expenses)]
+
+    logging.debug(f"Calculated total school expenses: {total_expenses}")
+
+    return total_expenses
 
 def calculate_remaining_principal(original_principal, interest_rate, months_to_pay, number_of_payments):
     """
@@ -160,26 +179,34 @@ def calculate_remaining_principal(original_principal, interest_rate, months_to_p
         float: The remaining principal balance after a certain number of payments.
     """
     import math
+    logging.debug(f"Calculating remaining principal with: original_principal={original_principal}, "
+                 f"interest_rate={interest_rate}, months_to_pay={months_to_pay}, number_of_payments={number_of_payments}")
+
 
     # Check if original_principal, interest_rate, months_to_pay, and number_of_payments are of the correct types
     if not all(isinstance(x, (int, float)) for x in [original_principal, interest_rate, months_to_pay, number_of_payments]):
+        logging.error("Invalid input: All input parameters must be of type int or float")
         raise TypeError("All input parameters must be of type int or float")
 
     # Check if any input parameters are negative
     if original_principal < 0 or interest_rate < 0 or months_to_pay < 0 or number_of_payments < 0:
+        logging.error("Invalid input: All input parameters must be non-negative")
         raise ValueError("All input parameters must be non-negative")
 
     # Check if months_to_pay or number_of_payments is zero
     if months_to_pay == 0 or number_of_payments == 0:
-        return 0  # Return 0 if either months_to_pay or number_of_payments is zero
+        logging.warning("Either months_to_pay or number_of_payments is zero, returning 0")
+        return 0
 
     # Calculate the remaining principal using the loan amortization formula
     remaining_principal = int(original_principal * ((1 + interest_rate/12)**number_of_payments - (1 + interest_rate/12)**months_to_pay) / ((1 + interest_rate/12)**number_of_payments - 1))
 
     # Check if the result is NaN
     if math.isnan(remaining_principal):
+        logging.error("Calculation resulted in NaN")
         raise ValueError("Calculation resulted in NaN")
 
+    logging.debug(f"Calculated remaining principal: {remaining_principal}")
     return remaining_principal
 
 
@@ -203,6 +230,10 @@ class House:
             number_of_payments (int, optional): The total number of mortgage payments. (default: 248)
             sell_house (bool, optional): Indicates if the house is to be sold. (default: False)
         """
+        logging.debug(f"Creating House object with: cost_basis={cost_basis}, closing_costs={closing_costs}, "
+                          f"home_improvement={home_improvement}, value={value}, mortgage_principal={mortgage_principal}, "
+                          f"commission_rate={commission_rate}, annual_growth_rate={annual_growth_rate}, interest_rate={interest_rate}, "
+                          f"monthly_payment={monthly_payment}, number_of_payments={number_of_payments}, sell_house={sell_house}")
         self.cost_basis = cost_basis
         self.closing_costs = closing_costs
         self.home_improvement = home_improvement
@@ -233,7 +264,9 @@ class House:
         Returns:
             float: The total basis of the house.
         """
-        return self.cost_basis + self.closing_costs + self.home_improvement
+        basis = self.cost_basis + self.closing_costs + self.home_improvement
+        logging.debug(f"calculate_basis: {basis}")
+        return basis
 
     def calculate_sale_basis(self, commission_rate=0.06):
         """
@@ -245,11 +278,15 @@ class House:
         Returns:
             tuple: A tuple containing the sale basis and the commission amount.
         """
+        logging.debug(f"Calculating sale basis with commission_rate={commission_rate}")
+        escrow_rate = 0.002
         escrow_rate = 0.002
         escrow = self.value * escrow_rate
         commission = self.value * commission_rate
         sale_basis = self.value - commission - escrow
-
+        
+        logging.debug(f"Calculated sale basis: {sale_basis}, commission: {commission}, escrow: {escrow}")        
+        
         return sale_basis, commission
 
     def calculate_capital_gains(self):
@@ -259,9 +296,15 @@ class House:
         Returns:
             float: The amount of capital gains tax to be paid.
         """
+        logging.debug("Calculating capital gains")
         sale_basis, commission = self.calculate_sale_basis()  # Unpack the tuple
-        capital_gain = sale_basis - self.calculate_basis()
-        return max(0, capital_gain - CAPITAL_GAIN_EXCLUSION)
+        basis = self.calculate_basis()
+        capital_gain = sale_basis - basis
+        capital_gains_tax = max(0, capital_gain - CAPITAL_GAIN_EXCLUSION)
+
+        logging.debug(f"Calculated capital gains: {capital_gains_tax}, sale_basis: {sale_basis}, basis: {basis}, capital_gain: {capital_gain}")
+
+        return capital_gains_tax
 
     def calculate_net_worth(self):
         """
@@ -270,7 +313,10 @@ class House:
         Returns:
             float: The net worth of the house (value minus mortgage principal).
         """
-        return self.value - self.mortgage_principal
+        logging.debug("Calculating net worth")
+        net_worth = self.value - self.mortgage_principal
+        logging.debug(f"Calculated net worth: {net_worth}")
+        return net_worth
 
     def calculate_future_investment(self, invest_capital, interest_rate, years):
         """
@@ -284,20 +330,30 @@ class House:
         Returns:
             float: The future value of the investment after the specified years.
         """
-        return calculate_future_value(invest_capital, 0, 0, interest_rate, years)
-
+        logging.debug(f"Calculating future investment with: invest_capital={invest_capital}, interest_rate={interest_rate}, years={years}")
+        future_value = calculate_future_value(invest_capital, 0, 0, interest_rate, years)
+        logging.debug(f"Calculated future investment: {future_value}")
+        return future_value
+    
 
 def calculate_house_values(current_house, config_data):
     # Calculate sale basis and capital gains for the current house
+    logging.debug("Calculating house values")
     commission_rate_myhouse = config_data['house']['commission_rate']
     sale_basis, total_commission = current_house.calculate_sale_basis(commission_rate=commission_rate_myhouse)
     capital_gain = current_house.calculate_capital_gains()
     house_net_worth = current_house.calculate_net_worth()
     capital_from_house = sale_basis - current_house.mortgage_principal - capital_gain
+
+    logging.debug(f"Calculated: sale_basis={sale_basis}, total_commission={total_commission}, capital_gain={capital_gain}, "
+                 f"house_net_worth={house_net_worth}, capital_from_house={capital_from_house}")
+    
     return sale_basis, total_commission, capital_gain, house_net_worth, capital_from_house
 
 def calculate_new_house_values(new_house, capital_from_house, config_data):
+    logging.debug("Calculating new house values")
     if not new_house:
+        logging.info("No new house, returning default values")
         return 0, 0, 0, 0, 0, 0, 0, 0  # Return default values if there's no new house
 
     # Calculate sale basis and capital gains for the new house
@@ -317,6 +373,10 @@ def calculate_new_house_values(new_house, capital_from_house, config_data):
     years = config_data['years']
     house_capital_investment = calculate_future_value(invest_capital, 0, 0, interest_rate, years)
 
+    logging.debug(f"Calculated new house values: sale_basis={new_house_sale_basis}, total_commission={new_house_total_commission}, "
+                    f"capital_gain={new_house_capital_gain}, new_house_cost={new_house_cost}, new_house_value={new_house_value}, "
+                    f"new_house_fees={new_house_fees}, invest_capital={invest_capital}, house_capital_investment={house_capital_investment}")
+
     return (new_house_sale_basis, new_house_total_commission, new_house_capital_gain,
             new_house_cost, new_house_value, new_house_fees, 
             invest_capital, house_capital_investment)
@@ -325,6 +385,7 @@ def initialize_variables():
     return 0, 0, 0
 
 def calculate_yearly_income(config_data, tax_rate):
+    logging.debug("Calculating yearly income")
     spouse1_yearly_income = config_data['spouse1_yearly_income_base'] + config_data['spouse1_yearly_income_bonus'] + config_data['spouse1_yearly_income_quarterly']
     spouse1_pre_tax_investments = config_data.get("SPOUSE1_PRETAX_INVESTMENTS", {})
     spouse1_total_pre_tax_investments = sum(spouse1_pre_tax_investments.values())
@@ -376,6 +437,7 @@ def calculate_yearly_income(config_data, tax_rate):
         "Spouse 2 After-Tax Investment Income": spouse2_income_after_posttax_items,
         "Yearly Net Income": yearly_income
     }
+    logging.debug(f"Calculated yearly data: {yearly_data}")
     return yearly_data
 
 def calculate_yearly_surplus(monthly_surplus):
@@ -387,7 +449,9 @@ def calculate_yearly_surplus(monthly_surplus):
   Returns:
       The total surplus for the year.
   """
+  logging.debug(f"Calculating yearly surplus with monthly_surplus: {monthly_surplus}")
   yearly_surplus = monthly_surplus * 12
+  logging.debug(f"Calculated yearly surplus: {yearly_surplus}")
   return yearly_surplus
 
 def determine_surplus_type(yearly_surplus):
@@ -399,16 +463,23 @@ def determine_surplus_type(yearly_surplus):
   Returns:
       A string indicating "Gain" if positive, "Expense" if negative, or "No Surplus/Expense" if zero.
   """
+  logging.debug(f"Determining surplus type for yearly_surplus: {yearly_surplus}")
+
   if yearly_surplus > 0:
-      return "Gain"
+    surplus_type = "Gain"
   elif yearly_surplus < 0:
-      return "Expense"
+    surplus_type = "Expense"
   else:
-      return "No Surplus/Expense"
+    surplus_type = "No Surplus/Expense"
+
+  logging.debug(f"Determined surplus type: {surplus_type}")
+  return surplus_type
 
 def format_currency(value):
   """Formats a numerical value as currency with commas."""
+  logging.debug(f"format_currency: {value}")
   return "${:,.0f}".format(value)
+
 
 def can_cover_school_expenses_per_year(yearly_surplus, school_expenses):
     """
@@ -422,12 +493,17 @@ def can_cover_school_expenses_per_year(yearly_surplus, school_expenses):
         A list of tuples containing (year, covered, remaining_surplus/deficit).
     """
 
+    logging.debug(f"Checking if yearly surplus can cover school expenses: yearly_surplus={yearly_surplus}, school_expenses={school_expenses}")
+
     # Ensure lists have the same length
     if len(yearly_surplus) != len(school_expenses):
+        logging.error("Yearly surplus and high school expenses lists must have the same length.")
         raise ValueError("Yearly surplus and high school expenses lists must have the same length.")
 
     report = []
     for year, expense in enumerate(school_expenses):
+        logging.debug(f"Checking year {year+1}: expense={expense}")
+
         if yearly_surplus[year] <= 0:  # If yearly surplus is zero or negative
             surplus_used = 0  # No surplus available
             remaining_surplus = 0  # Remaining surplus is also zero
@@ -438,8 +514,11 @@ def can_cover_school_expenses_per_year(yearly_surplus, school_expenses):
             remaining_surplus = yearly_surplus[year] - surplus_used
             covered = surplus_used >= expense  # True if expense is covered, False otherwise
             deficit = expense - surplus_used if not covered else 0  # Calculate deficit if expense is not covered
-        report.append((year + 1, covered, remaining_surplus, deficit))
 
+        report.append((year + 1, covered, remaining_surplus, deficit))
+        logging.debug(f"Year {year+1}: covered={covered}, remaining_surplus={remaining_surplus}, deficit={deficit}")
+
+    logging.debug(f"Report: {report}")
     return report
 
 
@@ -454,26 +533,45 @@ def get_work_status(spouse1_income, spouse2_income):
     Returns:
         A string indicating the work status ("Both Parents Work", "One Parent Works", or "No Parents Work").
     """
+    logging.debug(f"Determining work status with spouse1_income={spouse1_income}, spouse2_income={spouse2_income}")
+
     if spouse1_income is not None and spouse2_income is not None and spouse1_income > 0 and spouse2_income > 0:
-        return "Both Parents Work"
+        work_status = "Both Parents Work"
     elif (spouse1_income is not None and spouse1_income > 0) or (spouse2_income is not None and spouse2_income > 0):
-        return "One Parent Works"
+        work_status = "One Parent Works"
     else:
-        return "No Parents Work"
+        work_status = "No Parents Work"
+
+    logging.debug(f"Determined work status: {work_status}")
+    return work_status
+
 
 def calculate_tax_rate(config_data):
+    logging.debug("Calculating tax rate")
+
     spouse2_yearly_income_base = config_data.get('spouse2_yearly_income_base', 0)
     if spouse2_yearly_income_base:
-        return config_data['federal_tax_rate_dual'] + config_data['state_tax_rate_dual']
-    return config_data['federal_tax_rate_single'] + config_data['state_tax_rate_single']
+        tax_rate = config_data['federal_tax_rate_dual'] + config_data['state_tax_rate_dual']
+        logging.debug(f"Calculated tax rate for dual income: {tax_rate}")
+    else:
+        tax_rate = config_data['federal_tax_rate_single'] + config_data['state_tax_rate_single']
+        logging.debug(f"Calculated tax rate for single income: {tax_rate}")
+
+    return tax_rate
+
 
 # Function to parse config
 def parse_config(args):
+    logging.debug("Parsing config file")
+
     config_data = load_config(args.config_file_path)
     tax_rate = calculate_tax_rate(config_data)
+
+    logging.debug(f"Parsed config data: {config_data}, tax_rate: {tax_rate}")
     return config_data, tax_rate
 
 def calculate_total_monthly_expenses(config_data):
+    logging.debug("Calculating total monthly expenses")
     monthly_expenses_breakdown = {
         "Mortgage": config_data['mortgage'],
         "Yearly Property Tax": int(config_data['yearly_property_tax'] / 12),
@@ -490,6 +588,8 @@ def calculate_total_monthly_expenses(config_data):
         "Clothing": config_data.get('monthly_clothing', 0)
     }
     total_monthly_expenses = sum(monthly_expenses_breakdown.values())
+    logging.debug(f"Calculated total monthly expenses: {total_monthly_expenses}, breakdown: {monthly_expenses_breakdown}")
+    
     return total_monthly_expenses, monthly_expenses_breakdown
 
 def initialize_house_variables(config_data):
@@ -497,16 +597,18 @@ def initialize_house_variables(config_data):
     Initialize relevant variables based on configuration data.
 
     Args:
-    - config_data (dict): Configuration data for the financial scenario.
+        config_data (dict): Configuration data for the financial scenario.
 
     Returns:
-    - tuple: A tuple containing the initialized variables.
+        tuple: A tuple containing the initialized variables.
     """
+    logging.debug("Initializing house variables")
 
     # Create House instances
     current_house = create_house_instance(config_data['house'])
     new_house = create_house_instance(config_data.get('new_house'))
 
+    logging.debug(f"Created current_house: {current_house}, new_house: {new_house}")
     return current_house, new_house
 
 def create_house_instance(house_data):
@@ -514,14 +616,19 @@ def create_house_instance(house_data):
     Create a House instance based on configuration data.
 
     Args:
-    - house_data (dict): Configuration data for the house.
+        house_data (dict): Configuration data for the house.
 
     Returns:
-    - House: An instance of the House class.
+        House: An instance of the House class.
     """
+    logging.debug(f"Creating house instance with house_data: {house_data}")
+
     if house_data:
-        return House(**house_data)
+        house_instance = House(**house_data)
+        logging.debug(f"Created house instance: {house_instance}")
+        return house_instance
     else:
+        logging.debug("No house data provided, returning None")
         return None
 
 
@@ -530,13 +637,18 @@ def calculate_combined_net_worth(config_data, house_net_worth):
     Calculate the combined net worth.
 
     Args:
-    - config_data (dict): Configuration data for the financial scenario.
-    - house_net_worth (float): Net worth of the house.
+        config_data (dict): Configuration data for the financial scenario.
+        house_net_worth (float): Net worth of the house.
 
     Returns:
-    - float: Combined net worth.
+        float: Combined net worth.
     """
-    return config_data['investment_balance'] + config_data['retirement_principal'] + house_net_worth
+    logging.debug("Calculating combined net worth")
+
+    combined_net_worth = config_data['investment_balance'] + config_data['retirement_principal'] + house_net_worth
+    logging.debug(f"Calculated combined net worth: {combined_net_worth}")
+    return combined_net_worth
+
 
 def calculate_financial_data(config_data, tax_rate):
     yearly_data = calculate_yearly_income(config_data, tax_rate)

@@ -20,6 +20,7 @@ __pycache__/
 reports/
 *.html  
 scenarios/
+logs/
 *.json
 build/
 dist/
