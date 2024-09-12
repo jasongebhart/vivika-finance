@@ -1,5 +1,7 @@
 from utils import format_currency
 from html import escape
+import re
+import logging
 
 def format_key(key):
     import re
@@ -9,28 +11,36 @@ def format_key(key):
     formatted_key = ' '.join(word.capitalize() for word in formatted_key.split())
     return formatted_key
 
+def extract_numeric_value(currency_string):
+    match = re.search(r'\d+\.\d+', currency_string)
+    if match:
+        return float(match.group())
+    else:
+        return None  # Handle invalid currency strings
+    
 def generate_school_expense_coverage_html(data):
     html = """
-    <h2 id='school-expense-coverage-title'>School Expense Coverage 
+    <h2 id='school-expense-coverage-title'>School Expense Coverage
         <button type='button' class='toggle-button' onclick='toggleSectionVisibility("school-expense-coverage")'>Toggle</button>
     </h2>
     <div id='school-expense-coverage-content' class='section-content hidden'>
         <div class='table-container'>
             <table>
-                <tr><th>Grade</th><th>Coverage</th><th>Expenses Covered</th><th>Remaining Expenses</th></tr>
+                <tr><th>Year</th><th>Covered</th><th>Remaining Surplus</th><th>Deficit</th></tr>
     """
+
     for row in data:
-        grade, coverage, expenses_covered, remaining_expenses = row
-        html += f"<tr><td>{grade}</td><td>{'Yes' if coverage else 'No'}</td><td>${expenses_covered:,}</td><td>${remaining_expenses:,}</td></tr>"
+        html += f"<tr><td>{row['year']}</td><td>{'Yes' if row['covered'] else 'No'}</td><td>${row['remaining_surplus']:,}</td><td>${row['deficit']:,}</td></tr>"
+
     html += """
             </table>
         </div>
     </div>
     """
+
     return html
 
-
-def generate_current_house_html(current_house):
+def generate_current_house_html_old(current_house):
     html_content = """
     <h2 id='current-house'>Current House
         <button type='button' class='toggle-button' onclick='toggleSectionVisibility("current-house")'>Toggle</button>
@@ -56,6 +66,55 @@ def generate_current_house_html(current_house):
     """
     return html_content
 
+def generate_current_house_html(current_house):
+    """Generates HTML content for the current house section.
+
+    Args:
+        current_house (object): An object representing the current house.
+
+    Returns:
+        str: The generated HTML content.
+    """
+
+    html_content = """
+    <h2 id='current-house'>Current House
+        <button type='button' class='toggle-button' onclick='toggleSectionVisibility("current-house")'>Toggle</button>
+    </h2>
+    <div id='current-house-content' class='section-content hidden'>
+        <div class='table-container'>
+            <table>
+                <tr><th>Attribute</th><th>Value</th></tr>
+    """
+
+    for attr, value in current_house.__dict__.items():
+        formatted_attr = format_key(attr)
+
+        if isinstance(value, (float, int)):
+            # Check for decimal interest rate (0 to 1)
+            if 0 <= value <= 1:
+                formatted_value = f"{value:.2%}"  # Convert to percentage
+            else:
+                # Check for currency format
+                if re.search(r"^\$[\d,.]+$", str(value)):
+                    formatted_value = str(value)  # Keep currency format
+                else:
+                    formatted_value = "${:,.2f}".format(value)
+        elif isinstance(value, str) and "%" in value:
+            formatted_value = value  # Keep percentage format with existing symbol
+        else:
+            formatted_value = str(value)
+        if isinstance(value, bool):
+            formatted_value = "Yes" if value else "No"
+
+        html_content += f"<tr><td>{formatted_attr}</td><td>{formatted_value}</td></tr>"
+
+    html_content += """
+            </table>
+        </div>
+    </div>
+    """
+
+    return html_content
 def generate_future_value_html_table(report_data):
     years = report_data["config_data"]["years"]
     new_house = report_data["house_info"]["new_house"]
@@ -79,6 +138,32 @@ def generate_future_value_html_table(report_data):
             <tr><th># of Years</th><td>{years}</td></tr>
         </table>
     </div>
+    """
+    return html_content
+
+def generate_current_networth_html_table(report_data):
+    """
+    Generate HTML content for the current net worth section of the financial report.
+
+    Args:
+    - report_data (dict): Dictionary containing all necessary data for calculating the current net worth section.
+
+    Returns:
+    str: HTML content for the current net worth section.
+    """
+    house_info = report_data["house_info"]
+    config_data = report_data["config_data"]
+    calculated_data = report_data["calculated_data"]
+
+    html_content = f"""
+        <div class='table-container'>
+            <table>
+                <tr><th>House Net worth</th><td>{format_currency(house_info.get("house_net_worth", 0))}</td></tr>
+                <tr><th>Investment Balance</th><td>{format_currency(config_data.get('investment_balance', 0))}</td></tr>
+                <tr><th>Retirement Balance</th><td>{format_currency(config_data.get('retirement_principal', 0))}</td></tr>
+                <tr><th>Combined Net worth</th><td>{format_currency(calculated_data.get("combined_networth", 0))}</td></tr>
+            </table>
+        </div>
     """
     return html_content
 
@@ -113,28 +198,69 @@ def generate_current_networth_html(report_data):
     """
     return html_content
 
-def generate_section_html(section_title, data):
-    html_content = ""
-    if isinstance(data, dict):
-        html_content += "<div class='table-container'><table>"
-        for key, value in data.items():
-            html_content += f"<tr><th>{key}</th><td>{value}</td></tr>"
-        html_content += "</table></div>"
-    elif hasattr(data, '__dict__'):
-        html_content += "<div class='table-container'><table>"
-        for attr, value in data.__dict__.items():
-            html_content += f"<tr><th>{attr}</th><td>{value}</td></tr>"
-        html_content += "</table></div>"
-    else:
-        html_content += f"<p>{data}</p>"
-    return html_content
-
 def safe_int_conversion(value):
     try:
         return int(value)
     except (ValueError, TypeError):
         return value  # or return 0, or any other default value
 
+def generate_table_html(data, custom_formatter=None):
+    """Generates HTML for a table based on the provided data.
+
+    Args:
+        data (dict or object): The data to be displayed in the table.
+        custom_formatter (function, optional): A custom function to format the values.
+
+    Returns:
+        str: The generated HTML content for the table.
+    """
+
+    table_html = "<div class='table-container'><table>"
+
+    if isinstance(data, dict):
+        for key, value in data.items():
+            formatted_value = custom_formatter(value) if custom_formatter else value
+            table_html += f"<tr><th>{key}</th><td>{formatted_value}</td></tr>"
+    elif hasattr(data, '__dict__'):
+        for attr, value in data.__dict__.items():
+            formatted_value = custom_formatter(value) if custom_formatter else value
+            table_html += f"<tr><th>{attr}</th><td>{formatted_value}</td></tr>"
+
+    table_html += "</table></div>"
+    return table_html
+
+def generate_paragraph_html(data):
+    """Generates HTML for a paragraph.
+
+    Args:
+        data (str): The content of the paragraph.
+
+    Returns:
+        str: The generated HTML content for the paragraph.
+    """
+
+    return f"<p>{data}</p>"
+
+def generate_section_html(section_title, data, custom_formatter=None):
+    """Generates HTML content for a section, handling different data types.
+
+    Args:
+        section_title (str): The title of the section.
+        data: The data to be displayed in the section.
+        custom_formatter (function, optional): A custom function to format the values.
+
+    Returns:
+        str: The generated HTML content.
+    """
+
+    html_content = f"<h3>{section_title}</h3>"
+
+    if isinstance(data, dict) or hasattr(data, '__dict__'):
+        html_content += generate_table_html(data, custom_formatter)
+    else:
+        html_content += generate_paragraph_html(data)
+
+    return html_content
 
 def generate_html(report_data):
     excluded_sections = ["current_house", "school_expense_coverage", "LIVING_EXPENSES", "house_info"]
@@ -228,18 +354,31 @@ def generate_summary_report_html(summary_report_data):
     for scenario_name, scenario_data in summary_report_data.items():
         scenario_id = scenario_name.replace(" ", "-").lower()
         assumption_description = scenario_data.get("assumption_description", "")
+        description_detail = scenario_data.get("description_detail", "")
         html_content += f"""
             <div class='header'>
                 <h2 id='{scenario_id}-title'>{escape(assumption_description)}</h2>
                 <div id='{scenario_id}-content' class='section-content'>
                     <div class='table-container'>
                         <div>
-                            <h3>Scenario</h3>
+                            {scenario_data["scenario_summary_info"]}
+                        </div>
+                        <div>
+                            <h3>Current Value</h3>
+                            {scenario_data["current_value"]}
+                        </div>
+                        <div>
                             {scenario_data["living_expenses_location"]}
+                        </div>
+                        <div>
+                            {scenario_data["school_expenses"]}
                         </div>
                         <div>
                             <h3>Future Value</h3>
                             {scenario_data["future_value"]}
+                        </div>
+                        <div>
+                            <p>{escape(description_detail)}</p>
                         </div>
                     </div>
                 </div>

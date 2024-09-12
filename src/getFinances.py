@@ -16,7 +16,8 @@ def main():
 
     for scenario_name in base_config["selected_scenarios"]:
         try:
-            summary_data = investment_module.process_scenario(scenario_name, base_config, reports_dir)
+            # summary_data = investment_module.process_scenario(scenario_name, base_config, reports_dir,scenarios_dir="scenarios/sequences")
+            summary_data = investment_module.process_scenario(scenario_name, base_config, reports_dir,scenarios_dir="scenarios")
             summary_report_data[scenario_name] = summary_data
         except Exception as e:
             print(f"Failed to process scenario {scenario_name}: {e}")
