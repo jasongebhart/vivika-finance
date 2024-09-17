@@ -32,3 +32,6 @@ dist/
 # Virtual environment
 venv/
 env/
+
+# Other
+src/tools.py

@@ -362,23 +362,23 @@ def generate_summary_report_html(summary_report_data):
                     <div class='table-container'>
                         <div>
                             {scenario_data["scenario_summary_info"]}
+                            <p>{escape(description_detail)}</p>
                         </div>
                         <div>
                             <h3>Current Value</h3>
                             {scenario_data["current_value"]}
                         </div>
-                        <div>
-                            {scenario_data["living_expenses_location"]}
-                        </div>
-                        <div>
-                            {scenario_data["school_expenses"]}
-                        </div>
-                        <div>
+                         <div>
                             <h3>Future Value</h3>
                             {scenario_data["future_value"]}
                         </div>
                         <div>
-                            <p>{escape(description_detail)}</p>
+                            {scenario_data["living_expenses_location"]}
+                            {scenario_data["school_expenses"]}
+                        </div>
+                        <div>
+                            <h3>School</h3>
+                            {scenario_data["school_expenses_table_html"]}
                         </div>
                     </div>
                 </div>
@@ -404,3 +404,52 @@ def generate_html_for_dict(data):
     html_content += "</table>"
     return html_content
 
+def generate_table_for_child(child_data, table_class="expense-table", headers=["School Type", "Year", "Cost"]):
+    """Generates HTML table content for a child's educational expenses in a nested structure.
+
+    Args:
+        child_data (dict): A dictionary containing child information.
+        table_class (str, optional): The CSS class to apply to the table.
+        headers (list, optional): A list of column headers for the table.
+
+    Returns:
+        str: The generated HTML table content.
+    """
+
+    html_content = f"<table class='{table_class}'>\n"
+    html_content += "<thead>\n"
+    # html_content += "<tr><th>Child</th></tr>\n"
+    html_content += "</thead>\n"
+    html_content += "<tbody>\n"
+
+    for child in child_data.get("children", []):
+        html_content += f"<tr><td>{escape(child['name'])}</td></tr>\n"
+        html_content += "<tr><td colspan='2'><table><thead><tr><th>School Type</th><th>Year</th><th>Cost</th></tr></thead><tbody>"
+
+        school_data = child.get("school", {})
+        
+        # Combine all entries across school types into one list
+        combined_entries = []
+        for school_type, entries in school_data.items():
+            for entry in entries:
+                # Attach school type to each entry for display
+                combined_entries.append({
+                    'school_type': school_type,
+                    'year': int(entry['year']),
+                    'cost': entry['cost']
+                })
+        
+        # Sort all combined entries by year
+        sorted_entries = sorted(combined_entries, key=lambda entry: entry['year'])
+
+        for entry in sorted_entries:
+            year = escape(str(entry['year']))  # Convert back to string for HTML
+            cost = format_currency(entry['cost'])  # Format cost for readability
+            school_type = escape(entry['school_type'])
+            html_content += f"<tr><td>{school_type}</td><td>{year}</td><td>{cost}</td></tr>\n"
+
+        html_content += "</tbody></table></td></tr>\n"
+
+    html_content += "</tbody>\n"
+    html_content += "</table>\n"
+    return html_content

@@ -14,8 +14,16 @@ def create_log_directory():
     log_dir.mkdir(parents=True, exist_ok=True)
     return log_dir
 
-def setup_logging(log_dir: Path):
-    log_file_path = log_dir / 'getfinance.log'
+def setup_logging(log_dir: Path, log_name: str):
+    """
+    Sets up logging configuration for a specific log file.
+
+    Args:
+        log_dir (Path): The directory where the log file should be created.
+        log_name (str): The name of the log file (without the extension).
+    """
+
+    log_file_path = log_dir / log_name
     
     # Check if the file exists and delete it if necessary
     if log_file_path.exists():
@@ -348,7 +356,7 @@ def calculate_remaining_principal(original_principal, interest_rate, months_to_p
 class House:
     def __init__(self, cost_basis=0, closing_costs=0, home_improvement=0, value=0, mortgage_principal=0, 
                  commission_rate=0.0, annual_growth_rate=0.0461, interest_rate=0.0262, 
-                 monthly_payment=8265.21, number_of_payments=248, sell_house=False):
+                 monthly_payment=8265.21, number_of_payments=276, payments_made=36, sell_house=False):
         """
         Initializes a House object with its purchase costs, value, and mortgage details.
 
@@ -357,7 +365,7 @@ class House:
             closing_costs (float, optional): Closing costs associated with the purchase. (default: 0)
             home_improvement (float, optional): Cost of home improvements made. (default: 0)
             value (float, optional): The current market value of the house. (default: 0)
-            mortgage_principal (float, optional): The remaining principal balance on the mortgage. (default: 0)
+            mortgage_principal (float, optional): The starting principal balance of the mortgage. (default: 0)
             commission_rate (float, optional): The commission rate for selling the house. (default: 0.0)
             annual_growth_rate (float, optional): The annual growth rate of the house value. (default: 0.0461)
             interest_rate (float, optional): The annual interest rate of the mortgage. (default: 0.0262)
@@ -371,11 +379,13 @@ class House:
         self.home_improvement = home_improvement
         self.value = value
         self.mortgage_principal = mortgage_principal
+        self.remaining_principal = self.mortgage_principal  # Initialize with starting principal
         self.commission_rate = commission_rate
         self.annual_growth_rate = annual_growth_rate
         self.interest_rate = interest_rate
         self.monthly_payment = monthly_payment
         self.number_of_payments = number_of_payments
+        self.payments_made = payments_made
         self.sell_house = sell_house
 
     def __str__(self):
@@ -384,10 +394,11 @@ class House:
         """
         return f"House Object:\nCost Basis: ${self.cost_basis}\nClosing Costs: ${self.closing_costs}\n" \
                f"Home Improvement Costs: ${self.home_improvement}\nCurrent Value: ${self.value}\n" \
+               f"Remaining Principal: ${self.remaining_principal}\n" \
                f"Mortgage Principal: ${self.mortgage_principal}\nCommission Rate: {self.commission_rate}\n" \
                f"Annual Growth Rate: {self.annual_growth_rate}\nInterest Rate: {self.interest_rate}\n" \
                f"Monthly Payment: ${self.monthly_payment}\nNumber of Payments: {self.number_of_payments}\n" \
-               f"Sell House: {self.sell_house}"
+               f"Payments Made: {self.payments_made}\nSell House: {self.sell_house}"
 
     def calculate_basis(self):
         """
@@ -445,9 +456,22 @@ class House:
         logging.info(f"{'basis:':<36} {format_currency(basis)}")
         logging.info(f"{'capital_gain:':<36} {format_currency(capital_gain)}")
 
-
         return capital_gains_tax
 
+    def calculate_remaining_principal(self):
+        """
+        Calculates the remaining principal on the house mortgage based on payments made.
+
+        Returns:
+            float: The remaining principal balance on the mortgage.
+        """
+        months_to_pay = self.payments_made
+        remaining_principal = calculate_remaining_principal(
+            self.mortgage_principal, self.interest_rate , months_to_pay, self.number_of_payments
+        )
+        self.remaining_principal = remaining_principal
+        return remaining_principal
+    
     def calculate_net_worth(self):
         """
         Calculates the net worth of the house, considering its value and mortgage principal.
@@ -456,8 +480,8 @@ class House:
             float: The net worth of the house (value minus mortgage principal).
         """
         logging.debug("Entering <function ")
-        net_worth = self.value - self.mortgage_principal
-        logging.info(f"{'House net worth:':<40} {'value('}{format_currency(self.value)})- principal({format_currency(self.mortgage_principal)})")
+        net_worth = self.value - self.remaining_principal
+        logging.info(f"{'House net worth:':<40} {'value('}{format_currency(self.value)})- principal({format_currency(self.remaining_principal)})")
         logging.info(f"{'House net worth:':<40} {format_currency(net_worth)}")
         return net_worth
 
@@ -478,6 +502,7 @@ class House:
         future_value = calculate_future_value(invest_capital, 0, 0, interest_rate, years)
         logging.info(f"Future Investment: {future_value}")
         return future_value
+    
     
 
 def calculate_house_values(current_house, config_data):
@@ -699,7 +724,7 @@ def calculate_tax_rate(config_data):
         logging.info(f"{'Tax rate for dual income:':<41} {tax_rate}")
     else:
         tax_rate = config_data['federal_tax_rate_single'] + config_data['state_tax_rate_single']
-        logging.info(f"{'Tax rate for single income:':<39} {tax_rate}")
+        logging.info(f"{'Tax rate for single income:':<41} {tax_rate}")
 
     return tax_rate
 
@@ -779,11 +804,12 @@ def create_house_instance(house_data):
         house_data (dict): Configuration data for the house.
 
     Returns:
-        House: An instance of the House class.
+        House: An instance of the House class with updated remaining principal.
     """
     logging.debug(f"Entering <function ")
     if house_data:
         house_instance = House(**house_data)
+        house_instance.calculate_remaining_principal() 
         logging.info(f"\n {house_instance}\n")
         logging.debug(f"Exiting <function ")
         return house_instance
@@ -921,7 +947,7 @@ def calculate_future_house_values(new_house, config_data, current_house, new_hou
         years = config_data.get('years', 0) 
         remaining_principal = calculate_remaining_principal(
             current_house.mortgage_principal, current_house.interest_rate,
-            (config_data.get('years', 0) * 12), current_house.number_of_payments)
+            ((config_data.get('years', 0)  * 12) + current_house.payments_made), current_house.number_of_payments)
         house_value_future = calculate_future_value_byrate(current_house.value, current_house.annual_growth_rate, config_data.get('years', 0))
         house_networth_future = house_value_future - remaining_principal
         logging.info(f"{'Updated Principal:':<29}  {format_currency(remaining_principal)}")
@@ -1146,6 +1172,32 @@ def calculate_school_expenses(config_data, calculated_data):
     }
     return school_expenses_data
 
+def analyze_tuition_data(config_data):
+    """Analyzes tuition data and calculates total and average expenses per year.
+
+    Args:
+        data (dict): The JSON data containing tuition information.
+
+    Returns:
+        list: A list of dictionaries containing child information, total expenses, and average expenses per year.
+    """
+
+    results = []
+    for child in config_data["children"]:
+        child_data = {"name": child["name"]}
+        child_data["total_expenses"] = {}
+        child_data["average_expenses"] = {}
+
+        for expense_type in ["college", "high_school"]:
+            child_data["total_expenses"][expense_type] = sum(expense["cost"] for expense in child["expenses"][expense_type])
+            child_data["average_expenses"][expense_type] = child_data["total_expenses"][expense_type] / len(child["expenses"][expense_type])
+
+        child_data["total_expenses"]["combined"] = sum(child_data["total_expenses"].values())
+        child_data["average_expenses"]["combined"] = child_data["total_expenses"]["combined"] / 4  # Assuming 4 years of data
+
+        results.append(child_data)
+
+    return results
 
 def adjust_config(config_data, years_override, include_ski_team, ski_team_data, include_baseball_team, baseball_team_data, include_highschool_expenses, highschool_expenses_data):
     """
@@ -1275,6 +1327,7 @@ def generate_report(config_data, scenario_name):
     scenario_summary_html = report_html_generator.generate_section_html("Scenario", calculated_data.get("scenario_info", {}))
     living_expenses_html = report_html_generator.generate_section_html("Cash Flow Before School", calculated_data.get("LIVING_EXPENSES", {}), custom_formatter=format_currency)
     school_expenses_html = report_html_generator.generate_section_html("Projected School Costs", calculated_data.get("school_expenses", {}), custom_formatter=format_currency)
+    school_expenses_table_html = report_html_generator.generate_table_for_child(config_data, headers=["School", "Year", "Cost"])
 
     summary_data = {
         "assumption_description": config_data.get("assumption_description", ""),
@@ -1285,6 +1338,7 @@ def generate_report(config_data, scenario_name):
         "scenario_summary_info": scenario_summary_html,
         "living_expenses_location": living_expenses_html,
         "school_expenses": school_expenses_html,
+        "school_expenses_table_html": school_expenses_table_html,
     }
 
     scenario_html = report_html_generator.generate_html(report_data)

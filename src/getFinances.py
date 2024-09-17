@@ -3,7 +3,7 @@ import report_html_generator
 
 def main():
     log_dir = investment_module.create_log_directory()
-    investment_module.setup_logging(log_dir)
+    investment_module.setup_logging(log_dir, "getfinance.log")
     scenarios_data = investment_module.parse_and_load_config()
     # print(f"Loaded scenarios_data: {scenarios_data}")
     
@@ -16,8 +16,8 @@ def main():
 
     for scenario_name in base_config["selected_scenarios"]:
         try:
-            # summary_data = investment_module.process_scenario(scenario_name, base_config, reports_dir,scenarios_dir="scenarios/sequences")
             summary_data = investment_module.process_scenario(scenario_name, base_config, reports_dir,scenarios_dir="scenarios")
+            # If base_config["selected_scenarios"]
             summary_report_data[scenario_name] = summary_data
         except Exception as e:
             print(f"Failed to process scenario {scenario_name}: {e}")
