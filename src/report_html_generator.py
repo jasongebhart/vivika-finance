@@ -19,11 +19,9 @@ def extract_numeric_value(currency_string):
         return None  # Handle invalid currency strings
     
 def generate_school_expense_coverage_html(data):
-    html = """
-    <h2 id='school-expense-coverage-title'>School Expense Coverage
-        <button type='button' class='toggle-button' onclick='toggleSectionVisibility("school-expense-coverage")'>Toggle</button>
-    </h2>
-    <div id='school-expense-coverage-content' class='section-content hidden'>
+    html = """  
+    <button id='school-expense-coverage-button' type='button' class='collapsible' onclick='toggleCollapsible("school-expense-coverage-button", "school-expense-coverage-content")'>School Expense Coverage</button>
+    <div id='school-expense-coverage-content' class='content'>
         <div class='table-container'>
             <table>
                 <tr><th>Year</th><th>Covered</th><th>Remaining Surplus</th><th>Deficit</th></tr>
@@ -40,34 +38,10 @@ def generate_school_expense_coverage_html(data):
 
     return html
 
-def generate_current_house_html_old(current_house):
-    html_content = """
-    <h2 id='current-house'>Current House
-        <button type='button' class='toggle-button' onclick='toggleSectionVisibility("current-house")'>Toggle</button>
-    </h2>
-    <div id='current-house-content' class='section-content hidden'>
-        <div class='table-container'>
-            <table>
-                <tr><th>Attribute</th><th>Value</th></tr>
-    """
-    for attr, value in current_house.__dict__.items():
-        formatted_attr = format_key(attr)
-        if isinstance(value, (int, float)):
-            formatted_value = "${:,.2f}".format(value)
-        else:
-            formatted_value = str(value)
-        if isinstance(value, bool):
-            formatted_value = "Yes" if value else "No"
-        html_content += f"<tr><td>{formatted_attr}</td><td>{formatted_value}</td></tr>"
-    html_content += """
-            </table>
-        </div>
-    </div>
-    """
-    return html_content
 
 def generate_current_house_html(current_house):
-    """Generates HTML content for the current house section.
+    """Generates HTML content for the current house section with collapsible functionality,
+    formatting specific fields differently as needed.
 
     Args:
         current_house (object): An object representing the current house.
@@ -76,11 +50,20 @@ def generate_current_house_html(current_house):
         str: The generated HTML content.
     """
 
-    html_content = """
-    <h2 id='current-house'>Current House
-        <button type='button' class='toggle-button' onclick='toggleSectionVisibility("current-house")'>Toggle</button>
-    </h2>
-    <div id='current-house-content' class='section-content hidden'>
+    if not current_house:
+        # Return a message or an empty table if no data is provided
+        logging.info("current house info NOT found")
+        return "<p>No current_house data available.</p>"
+    logging.info("current house info found")
+
+    # Define fields that should be treated as plain numbers
+    plain_number_fields = ["number_of_payments", "payments_made"]
+
+    html_content = f"""
+    <button id='current-house-button' class='collapsible' onclick='toggleCollapsible("current-house-button", "current-house-content")'>
+        Current House
+    </button>
+    <div id='current-house-content' class='content' style='max-height: 0; overflow: hidden; transition: max-height 0.2s ease-out;'>
         <div class='table-container'>
             <table>
                 <tr><th>Attribute</th><th>Value</th></tr>
@@ -90,15 +73,18 @@ def generate_current_house_html(current_house):
         formatted_attr = format_key(attr)
 
         if isinstance(value, (float, int)):
+            # Check if the attribute should be treated as a plain number
+            if attr.lower() in plain_number_fields:
+                formatted_value = str(value)  # Leave the number as-is
             # Check for decimal interest rate (0 to 1)
-            if 0 <= value <= 1:
+            elif 0 <= value <= 1:
                 formatted_value = f"{value:.2%}"  # Convert to percentage
             else:
                 # Check for currency format
                 if re.search(r"^\$[\d,.]+$", str(value)):
                     formatted_value = str(value)  # Keep currency format
                 else:
-                    formatted_value = "${:,.2f}".format(value)
+                    formatted_value = "${:,.2f}".format(value)  # Format other numbers as currency
         elif isinstance(value, str) and "%" in value:
             formatted_value = value  # Keep percentage format with existing symbol
         else:
@@ -115,6 +101,70 @@ def generate_current_house_html(current_house):
     """
 
     return html_content
+
+def generate_new_house_html(new_house):
+    """Generates HTML content for the new house section with collapsible functionality,
+    formatting specific fields differently as needed.
+
+    Args:
+        new_house (object): An object representing the new house.
+
+    Returns:
+        str: The generated HTML content.
+    """
+
+    if not new_house:
+        # Return a message or an empty table if no data is provided
+        logging.info("new house info NOT found")
+        return "<p>No new_house data available.</p>"
+    logging.info("new house info found")
+
+    # Define fields that should be treated as plain numbers
+    plain_number_fields = ["number_of_payments", "payments_made"]
+
+    html_content = f"""
+    <button id='new-house-button' class='collapsible' onclick='toggleCollapsible("new-house-button", "new-house-content")'>
+        New House
+    </button>
+    <div id='new-house-content' class='content' '>
+        <div class='table-container'>
+            <table>
+                <tr><th>Attribute</th><th>Value</th></tr>
+    """
+
+    for attr, value in new_house.__dict__.items():
+        formatted_attr = format_key(attr)
+
+        if isinstance(value, (float, int)):
+            # Check if the attribute should be treated as a plain number
+            if attr.lower() in plain_number_fields:
+                formatted_value = str(value)  # Leave the number as-is
+            # Check for decimal interest rate (0 to 1)
+            elif 0 <= value <= 1:
+                formatted_value = f"{value:.2%}"  # Convert to percentage
+            else:
+                # Check for currency format
+                if re.search(r"^\$[\d,.]+$", str(value)):
+                    formatted_value = str(value)  # Keep currency format
+                else:
+                    formatted_value = "${:,.2f}".format(value)  # Format other numbers as currency
+        elif isinstance(value, str) and "%" in value:
+            formatted_value = value  # Keep percentage format with existing symbol
+        else:
+            formatted_value = str(value)
+        if isinstance(value, bool):
+            formatted_value = "Yes" if value else "No"
+
+        html_content += f"<tr><td>{formatted_attr}</td><td>{formatted_value}</td></tr>"
+
+    html_content += """
+            </table>
+        </div>
+    </div>
+    """
+
+    return html_content
+
 def generate_future_value_html_table(report_data):
     years = report_data["config_data"]["years"]
     new_house = report_data["house_info"]["new_house"]
@@ -156,16 +206,165 @@ def generate_current_networth_html_table(report_data):
     calculated_data = report_data["calculated_data"]
 
     html_content = f"""
+    <div class='table-container'>
+    <table>
+        <tr>
+        <th>House Net Worth</th>
+        <td>
+            <div class="house-net-worth-field">
+            <span class="house-net-worth">{format_currency(house_info.get("house_net_worth", 0))}</span>
+            <span class="tooltip">
+                <span class="tooltip-text">
+                Calculated by (House Value - Remaining Mortgage Principal)
+                </span>
+            </span>
+            </div>
+        </td>
+        </tr>
+        <tr><th>Investment Balance</th><td>{format_currency(config_data.get('investment_balance', 0))}</td></tr>
+        <tr><th>Retirement Balance</th><td>{format_currency(config_data.get('retirement_principal', 0))}</td>
+        </tr>
+        <tr><th>Combined Net worth</th><td>{format_currency(calculated_data.get("combined_networth", 0))}</td></tr>
+    </table>
+    </div>
+    """
+
+    return html_content
+
+def generate_income_expenses_html(section_title, calculated_data):
+    """
+    Converts the calculated income and expenses data into an HTML table with collapsible functionality.
+
+    Args:
+        calculated_data (dict): The dictionary containing the income and expense data.
+
+    Returns:
+        str: The generated HTML content as a collapsible table.
+    """
+
+    html_content = f"""
+    <button id='income-expenses-button' type='button' class='collapsible' onclick='toggleCollapsible("income-expenses-button", "income-expenses-content")'>
+        {section_title}
+    </button>
+    <div id='income-expenses-content' class='content' style='max-height: 0; overflow: hidden; transition: max-height 0.2s ease-out;'>
         <div class='table-container'>
-            <table>
-                <tr><th>House Net worth</th><td>{format_currency(house_info.get("house_net_worth", 0))}</td></tr>
-                <tr><th>Investment Balance</th><td>{format_currency(config_data.get('investment_balance', 0))}</td></tr>
-                <tr><th>Retirement Balance</th><td>{format_currency(config_data.get('retirement_principal', 0))}</td></tr>
-                <tr><th>Combined Net worth</th><td>{format_currency(calculated_data.get("combined_networth", 0))}</td></tr>
+            <table class='income-expenses-table'>
+                <thead>
+                    <tr><th>Category</th><th>Value</th></tr>
+                </thead>
+                <tbody>
+    """
+
+    # Iterate over the calculated data dictionary
+    for key, value in calculated_data.items():
+        formatted_key = format_key(key)  # Format the key for readability
+
+        # If the value is a dictionary (like monthly_expenses_breakdown), convert it into nested tables
+        if isinstance(value, dict):
+            nested_table = "<table><thead><tr><th>Subcategory</th><th>Value</th></tr></thead><tbody>"
+            for sub_key, sub_value in value.items():
+                nested_table += f"<tr><td>{format_key(sub_key)}</td><td>{format_value(sub_value)}</td></tr>"
+            nested_table += "</tbody></table>"
+
+            html_content += f"<tr><td>{formatted_key}</td><td>{nested_table}</td></tr>"
+        
+        # If the value is a list (like yearly_data), generate rows for each item
+        elif isinstance(value, list):
+            html_content += f"<tr><td>{formatted_key}</td><td>"
+            html_content += "<ul>"
+            for item in value:
+                html_content += f"<li>{format_value(item)}</li>"
+            html_content += "</ul></td></tr>"
+
+        # For scalar values (int, float, str), directly add the row
+        else:
+            html_content += f"<tr><td>{formatted_key}</td><td>{format_value(value)}</td></tr>"
+
+    html_content += """
+                </tbody>
             </table>
         </div>
+    </div>
     """
+
     return html_content
+
+def generate_configuration_data_html(section_title, configuration_data):
+    """
+    Converts the calculated income and expenses data into an HTML table with collapsible functionality.
+
+    Args:
+        configuration_data (dict): The dictionary containing the json configuration.
+
+    Returns:
+        str: The generated HTML content as a collapsible table.
+    """
+
+    html_content = f"""
+    <button id='calculated-data-button' type='button' class='collapsible' onclick='toggleCollapsible("calculated-data-button", "calculated-data-content")'>
+        {section_title}
+    </button>
+    <div id='calculated-data-content' class='content'>
+        <div class='table-container'>
+            <table class='calculated-data-table'>
+                <thead>
+                    <tr><th>Category</th><th>Value</th></tr>
+                </thead>
+                <tbody>
+    """
+
+    # Iterate over the calculated data dictionary
+    for key, value in configuration_data.items():
+        formatted_key = format_key(key)  # Format the key for readability
+
+        # If the value is a dictionary (like monthly_expenses_breakdown), convert it into nested tables
+        if isinstance(value, dict):
+            nested_table = "<table><thead><tr><th>Subcategory</th><th>Value</th></tr></thead><tbody>"
+            for sub_key, sub_value in value.items():
+                nested_table += f"<tr><td>{format_key(sub_key)}</td><td>{format_value(sub_value)}</td></tr>"
+            nested_table += "</tbody></table>"
+
+            html_content += f"<tr><td>{formatted_key}</td><td>{nested_table}</td></tr>"
+        
+        # If the value is a list (like yearly_data), generate rows for each item
+        elif isinstance(value, list):
+            html_content += f"<tr><td>{formatted_key}</td><td>"
+            html_content += "<ul>"
+            for item in value:
+                html_content += f"<li>{format_value(item)}</li>"
+            html_content += "</ul></td></tr>"
+
+        # For scalar values (int, float, str), directly add the row
+        else:
+            html_content += f"<tr><td>{formatted_key}</td><td>{format_value(value)}</td></tr>"
+
+    html_content += """
+                </tbody>
+            </table>
+        </div>
+    </div>
+    """
+
+    return html_content
+
+def format_key(key):
+    """
+    Formats a key for better readability in the HTML table.
+    Example: Converts 'yearly_income_deficit' to 'Yearly Income Deficit'.
+    """
+    return key.replace('_', ' ').capitalize()
+
+def format_value(value):
+    """
+    Formats a value for display in the HTML table.
+    """
+    if isinstance(value, (int, float)):
+        # Format numbers with commas
+        return f"{value:,.3f}" if isinstance(value, float) else f"{value:,}"
+    else:
+        # Return the string representation for other types
+        return str(value)
+
 
 def generate_current_networth_html(report_data):
     """
@@ -181,11 +380,9 @@ def generate_current_networth_html(report_data):
     config_data = report_data["config_data"]
     calculated_data = report_data["calculated_data"]
 
-    html_content = f"""
-    <h2 id='current-net-worth-title'>Current Net Worth 
-        <button type='button' class='toggle-button' onclick='toggleSectionVisibility("current-net-worth")'>Toggle</button>
-    </h2>
-    <div id='current-net-worth-content' class='section-content hidden'>
+    html_content = f"""  
+    <button id='current-net-worth-button' type='button' class='collapsible' onclick='toggleCollapsible("current-net-worth-button", "current-net-worth-content" )'>Current Net Worth</button>
+    <div id='current-net-worth-content' class='content'>
         <div class='table-container'>
             <table>
                 <tr><th>House Net worth</th><td>{format_currency(house_info.get("house_net_worth", 0))}</td></tr>
@@ -204,12 +401,13 @@ def safe_int_conversion(value):
     except (ValueError, TypeError):
         return value  # or return 0, or any other default value
 
-def generate_table_html(data, custom_formatter=None):
+def generate_table_html(data, custom_formatter=None, headers=None):
     """Generates HTML for a table based on the provided data.
 
     Args:
         data (dict or object): The data to be displayed in the table.
         custom_formatter (function, optional): A custom function to format the values.
+        headers (list, optional): A list of column headers to display at the top of the table.
 
     Returns:
         str: The generated HTML content for the table.
@@ -217,48 +415,150 @@ def generate_table_html(data, custom_formatter=None):
 
     table_html = "<div class='table-container'><table>"
 
+    # Add table headers if provided
+    if headers:
+        table_html += "<thead><tr>"
+        for header in headers:
+            table_html += f"<th>{header}</th>"
+        table_html += "</tr></thead>"
+
+    # Add table body with data
+    table_html += "<tbody>"
     if isinstance(data, dict):
         for key, value in data.items():
-            formatted_value = custom_formatter(value) if custom_formatter else value
+            formatted_value = custom_formatter(value) if custom_formatter and value is not None else value
             table_html += f"<tr><th>{key}</th><td>{formatted_value}</td></tr>"
     elif hasattr(data, '__dict__'):
         for attr, value in data.__dict__.items():
-            formatted_value = custom_formatter(value) if custom_formatter else value
+            formatted_value = custom_formatter(value) if custom_formatter and value is not None else value
             table_html += f"<tr><th>{attr}</th><td>{formatted_value}</td></tr>"
+    table_html += "</tbody>"
 
     table_html += "</table></div>"
     return table_html
 
-def generate_paragraph_html(data):
-    """Generates HTML for a paragraph.
+
+def generate_paragraph_html(data, custom_formatter=None):
+    """
+    Generates HTML for a paragraph, with optional custom formatting.
 
     Args:
         data (str): The content of the paragraph.
+        custom_formatter (function, optional): A function to format the data.
 
     Returns:
         str: The generated HTML content for the paragraph.
     """
-
+    # Apply custom formatting if provided
+    if custom_formatter:
+        data = custom_formatter(data)
+    
     return f"<p>{data}</p>"
 
-def generate_section_html(section_title, data, custom_formatter=None):
-    """Generates HTML content for a section, handling different data types.
+
+def generate_section_html(section_title, data, custom_formatter=None, headers=None, collapsible=False):
+    """Generates HTML content for a section, handling different data types with optional collapsibility.
 
     Args:
-        section_title (str): The title of the section.
+        section_title (str or None): The title of the section, or None if no title is needed.
         data: The data to be displayed in the section.
         custom_formatter (function, optional): A custom function to format the values.
+        headers (list, optional): A list of column headers to display at the top of the table.
+        collapsible (bool, optional): Whether the section should be collapsible.
 
     Returns:
         str: The generated HTML content.
     """
+    if not data:
+        # Return a message or an empty table if no data is provided
+        logging.info("No data available passed to function")
+        return "<p>No data available.</p>"
+    
+    html_content = ""
 
-    html_content = f"<h3>{section_title}</h3>"
+    # Generate a unique ID for the collapsible section
+    section_id = section_title.replace(" ", "-").lower() if section_title else "section"
+    button_id = f"{section_id}-button"
+    content_id = f"{section_id}-content"
 
-    if isinstance(data, dict) or hasattr(data, '__dict__'):
-        html_content += generate_table_html(data, custom_formatter)
+    logging.info(f"{section_id}, {button_id}, {content_id}") 
+    # Add collapsibility button if required
+    if collapsible:
+        html_content += f"""
+            <button id="{button_id}" class="collapsible" onclick="toggleCollapsible('{button_id}', '{content_id}')">{section_title}</button>
+            <div id="{content_id}" class="content" style="max-height: 0; overflow: hidden; transition: max-height 0.2s ease-out;">
+        """
     else:
-        html_content += generate_paragraph_html(data)
+        # Standard section title without collapsibility
+        if section_title:
+            html_content += f"<h3>{section_title}</h3>"
+
+    # Check if data is dict or object and pass headers if provided
+    if isinstance(data, dict) or hasattr(data, '__dict__'):
+        try:
+            html_content += generate_table_html(data, custom_formatter, headers)
+        except Exception as e:
+            logging.error(f"Error generating table: {e}")
+            html_content += "<p>Error generating table content.</p>"
+    else:
+        html_content += generate_paragraph_html(data, custom_formatter)
+
+    # Close the collapsible content div if collapsibility is enabled
+    if collapsible:
+        html_content += "</div>"
+
+    return html_content
+
+def generate_house_section_html(section_title, data, custom_formatter=None, headers=None, collapsible=False):
+    """Generates HTML content for a section, handling different data types with optional collapsibility.
+
+    Args:
+        section_title (str or None): The title of the section, or None if no title is needed.
+        data: The data to be displayed in the section.
+        custom_formatter (function, optional): A custom function to format the values.
+        headers (list, optional): A list of column headers to display at the top of the table.
+        collapsible (bool, optional): Whether the section should be collapsible.
+
+    Returns:
+        str: The generated HTML content.
+    """
+    if not data:
+        # Return a message or an empty table if no data is provided
+        logging.info("No data available passed to function")
+        return "<p>No data available.</p>"
+    
+    html_content = ""
+
+    # Generate a unique ID for the collapsible section
+    section_id = section_title.replace(" ", "-").lower() if section_title else "section"
+    button_id = f"{section_id}-button"
+    content_id = f"{section_id}-content"
+
+    logging.info(f"{section_id}, {button_id}, {content_id}") 
+    # Add collapsibility button if required
+    if collapsible:
+        html_content += f"""
+            <button id="{button_id}" class="collapsible" onclick="toggleCollapsible('{button_id}', '{content_id}')">{section_title}</button>
+            <div id="{content_id}" class="content" style="max-height: 0; overflow: hidden; transition: max-height 0.2s ease-out;">
+        """
+    else:
+        # Standard section title without collapsibility
+        if section_title:
+            html_content += f"<h3>{section_title}</h3>"
+
+    # Check if data is dict or object and pass headers if provided
+    if isinstance(data, dict) or hasattr(data, '__dict__'):
+        try:
+            html_content += generate_table_html(data, custom_formatter=None, headers=headers)
+        except Exception as e:
+            logging.error(f"Error generating table: {e}")
+            html_content += "<p>Error generating table content.</p>"
+    else:
+        html_content += generate_paragraph_html(data, custom_formatter)
+
+    # Close the collapsible content div if collapsibility is enabled
+    if collapsible:
+        html_content += "</div>"
 
     return html_content
 
@@ -295,40 +595,63 @@ def generate_html(report_data):
     </head>
     <body>
         <h1>Financial Report</h1>
+        <div class='header-container'>
     """
-
+    html_content += """
+        <div class='header'>
+        <h2 id='detail-title'>Detail</h2>
+        <div id='content' class='section-content'>
+    """
     future_value_html = generate_future_value_html_table(report_data)
     formatted_future_title = format_key("Future Value")
-    html_content += f"<h2>{escape(formatted_future_title)} <button type='button' class='toggle-button' onclick='toggleSectionVisibility(\"future-value\")'>Toggle</button></h2>"
-    html_content += f"<div id='future-value-content' class='section-content hidden'>{future_value_html}</div>"
+    html_content += f"<button type='button' class='collapsible' onclick='toggleCollapsible(\"future-value\", \"future-value-content\")'>{escape(formatted_future_title)}</button>"
+    html_content += f"<div id='future-value-content' class='content'>{future_value_html}</div>"
 
-    living_expenses_html = generate_section_html("Scenario", report_data["calculated_data"]["LIVING_EXPENSES"])
-    formatted_living_expenses_title = format_key("Scenario")
-    html_content += f"<h2>{escape(formatted_living_expenses_title)} <button type='button' class='toggle-button' onclick='toggleSectionVisibility(\"living-expenses\")'>Toggle</button></h2>"
-    html_content += f"<div id='living-expenses-content' class='section-content hidden'>{living_expenses_html}</div>"
+    yearly_income_surplus_html = generate_section_html("Yearly Income Surplus", report_data["calculated_data"]["LIVING_EXPENSES"], format_currency)
+    yearly_income_surplus_title = format_key("Yearly Income Surplus")
+    html_content += f"<button type='button' class='collapsible' onclick='toggleCollapsible(\"living-expenses\", \"living-expenses-content\")'>{escape(yearly_income_surplus_title)}</button>"
+    html_content += f"<div id='living-expenses-content' class='content'>{yearly_income_surplus_html}</div>"
 
-    for section_title, data in report_data.items():
-        if section_title not in excluded_sections:
-            section_class = section_title.replace('_', '-')
-            formatted_section_title = format_key(section_title)
-            html_content += f"<h2>{escape(formatted_section_title)} <button type='button' class='toggle-button' onclick='toggleSectionVisibility(\"{section_class}\")'>Toggle</button></h2>"
-            formatted_data = format_data(data)
-            html_content += f"<div id='{section_class}-content' class='section-content hidden'>{formatted_data}</div>"
-
+    html_content += generate_configuration_data_html("Configuration Data", report_data['config_data'])
+    html_content += generate_income_expenses_html("Income and Expenses", report_data['calculated_data'])
     html_content += generate_current_networth_html(report_data)
 
     school_expense_coverage_html = generate_school_expense_coverage_html(report_data["calculated_data"]["school_expense_coverage"])
     html_content += school_expense_coverage_html
 
-    house_info_html = generate_section_html("House Info", report_data["house_info"])
+    headers = ["Attribute", "Value"]
+    logging.info("Generate house info HTML")
+    
+    if "house_info" in report_data:
+        house_info_html = generate_house_section_html(
+            None,
+            report_data["house_info"],
+            custom_formatter=None,
+            headers=headers
+        )
+    else:
+        logging.info('"house_info" is NOT in report_data')
+        house_info_html = "<p>No house information available.</p>"
+
     formatted_house_info_title = format_key("House Info")
-    html_content += f"<h2>{escape(formatted_house_info_title)} <button type='button' class='toggle-button' onclick='toggleSectionVisibility(\"house-info\")'>Toggle</button></h2>"
-    html_content += f"<div id='house-info-content' class='section-content hidden'>{house_info_html}</div>"
+    html_content += f"<button type='button' class='collapsible' onclick='toggleCollapsible(\"house-info\", \"house-info-content\")'>{formatted_house_info_title}</button>"
+    html_content += f"<div id='house-info-content' class='content'>{house_info_html}</div>"
 
     current_house_html = generate_current_house_html(report_data["current_house"])
     html_content += current_house_html
 
+    if "new_house" in report_data:
+       logging.info('new_house FOUND in report_data')
+       new_house_html = generate_new_house_html(report_data["new_house"])
+       html_content += new_house_html
+    else:
+        logging.info('new_house is NOT in report_data')
+        html_content += "<p>new_house is NOT available.</p>"
+
     html_content += """
+                    </div>
+            </div>
+            </div> <!-- End of header-container -->
     </body>
     </html>
     """
@@ -373,12 +696,33 @@ def generate_summary_report_html(summary_report_data):
                             {scenario_data["future_value"]}
                         </div>
                         <div>
-                            {scenario_data["living_expenses_location"]}
-                            {scenario_data["school_expenses"]}
+                            {scenario_data["yearly_net_html"]}
+                            {scenario_data["avg_yearly_fee_html"]}
+                            {scenario_data["cashflow_after_school_fee_html"]}
                         </div>
                         <div>
-                            <h3>School</h3>
+                            {scenario_data["assumptions_html"]}
+                        </div>
+                        <div>
+                            {scenario_data["monthly_expenses_html"]}
+                        </div>
+                         <div>
+                            {scenario_data["expenses_not_factored_html"]}
+                        </div>
+                        <div>
                             {scenario_data["school_expenses_table_html"]}
+                        </div>
+                        <div>
+                            {scenario_data["investment_table_html"]}
+                        </div>
+                        <div>
+                            {scenario_data["retirement_table_html"]}
+                        </div>
+                        <div>
+                            {scenario_data["current_house_html"]}
+                        </div>
+                        <div>
+                            {scenario_data["new_house_html"]}
                         </div>
                     </div>
                 </div>
@@ -405,7 +749,7 @@ def generate_html_for_dict(data):
     return html_content
 
 def generate_table_for_child(child_data, table_class="expense-table", headers=["School Type", "Year", "Cost"]):
-    """Generates HTML table content for a child's educational expenses in a nested structure.
+    """Generates HTML table content for a child's educational expenses in a nested structure with collapsible sections.
 
     Args:
         child_data (dict): A dictionary containing child information.
@@ -415,16 +759,28 @@ def generate_table_for_child(child_data, table_class="expense-table", headers=["
     Returns:
         str: The generated HTML table content.
     """
+    if not child_data:
+        # Return a message or an empty table if no data is provided
+        return "<p>No chidlren school expenses data available.</p>"
+    
+    html_content = ""  # Initialize the HTML content
 
-    html_content = f"<table class='{table_class}'>\n"
-    html_content += "<thead>\n"
-    # html_content += "<tr><th>Child</th></tr>\n"
-    html_content += "</thead>\n"
-    html_content += "<tbody>\n"
+    for index, child in enumerate(child_data.get("children", [])):
+        child_name = escape(child['name'])  # Get and escape the child's name
+        child_id = f"childDetails-{index}"  # Create a unique ID for each child's details section
 
-    for child in child_data.get("children", []):
-        html_content += f"<tr><td>{escape(child['name'])}</td></tr>\n"
-        html_content += "<tr><td colspan='2'><table><thead><tr><th>School Type</th><th>Year</th><th>Cost</th></tr></thead><tbody>"
+        # Add the child name as a collapsible button with toggle functionality
+        html_content += f"""
+            <button id="{child_id}-button" class="collapsible" onclick="toggleCollapsible('{child_id}-button', '{child_id}-content')">
+                {child_name} School
+            </button>
+            <div id="{child_id}-content" class="content" style="max-height: 0; overflow: hidden; transition: max-height 0.2s ease-out;">
+                <table class='{table_class}'>
+                    <thead>
+                        <tr><th>{escape(headers[0])}</th><th>{escape(headers[1])}</th><th>{escape(headers[2])}</th></tr>
+                    </thead>
+                    <tbody>
+        """
 
         school_data = child.get("school", {})
         
@@ -432,14 +788,13 @@ def generate_table_for_child(child_data, table_class="expense-table", headers=["
         combined_entries = []
         for school_type, entries in school_data.items():
             for entry in entries:
-                # Attach school type to each entry for display
                 combined_entries.append({
                     'school_type': school_type,
                     'year': int(entry['year']),
                     'cost': entry['cost']
                 })
-        
-        # Sort all combined entries by year
+
+        # Sort entries by year
         sorted_entries = sorted(combined_entries, key=lambda entry: entry['year'])
 
         for entry in sorted_entries:
@@ -448,8 +803,156 @@ def generate_table_for_child(child_data, table_class="expense-table", headers=["
             school_type = escape(entry['school_type'])
             html_content += f"<tr><td>{school_type}</td><td>{year}</td><td>{cost}</td></tr>\n"
 
-        html_content += "</tbody></table></td></tr>\n"
+        html_content += """
+                    </tbody>
+                </table>
+            </div>  <!-- End of hidden details section -->
+        """  # End of child section
 
-    html_content += "</tbody>\n"
-    html_content += "</table>\n"
+    return html_content
+
+def generate_investment_table(data, custom_formatter=None):
+    """Generates HTML for a table based on the provided data.
+
+    Args:
+        data (dict or object): The data to be displayed in the table.
+        custom_formatter (function, optional): A custom function to format the values.
+
+    Returns:
+        str: The generated HTML content for the table.
+    """
+    
+    if not data:
+        # Return a message or an empty table if no data is provided
+        return "<p>No investment data available.</p>"
+
+    html_content = ""
+    html_content += f"""
+        <button id="investment-button" class="collapsible" onclick="toggleCollapsible('investment-button', 'investment-content')">Investment Breakdown</button>
+        <div id="investment-content" class="content" style="max-height: 0; overflow: hidden; transition: max-height 0.2s ease-out;">
+            <table>
+    """
+
+    total = 0
+    if isinstance(data, dict):
+        for key, value in data.items():
+            formatted_value = custom_formatter(value) if custom_formatter else value
+            total += value  # Accumulate the total
+            html_content += f"<tr><th>{key}</th><td>{formatted_value}</td></tr>"
+    elif hasattr(data, '__dict__'):
+        for attr, value in data.__dict__.items():
+            formatted_value = custom_formatter(value) if custom_formatter else value
+            total += value  # Accumulate the total
+            html_content += f"<tr><th>{attr}</th><td>{formatted_value}</td></tr>"
+
+    # Add the total row
+    html_content += f"<tr><th>Total</th><td>{custom_formatter(total) if custom_formatter else total}</td></tr>"
+
+    html_content += "</table></div>"
+    return html_content
+
+
+def generate_retirement_table(config_data, table_class="retirement-table"):
+    """Generates HTML table content for retirement contributions and accounts with toggle functionality for each spouse.
+
+    Args:
+        config_data (dict): A dictionary containing retirement data for each person.
+        table_class (str, optional): The CSS class to apply to the table.
+
+    Returns:
+        str: The generated HTML table content.
+    """
+    if not config_data:
+        # Return a message or an empty table if no data is provided
+        return "<p>No No Retirement data available.</p>"
+
+    html_content = ""  # Initialize the HTML content
+    grand_total_balance = 0  # Initialize grand total for all parents
+    
+    retirement_data = config_data.get("RETIREMENT", [])  # Extract the "RETIREMENT" list
+
+    # Calculate grand total balance for all parents first
+    for parent in retirement_data:
+        accounts_data = parent.get("accounts", {})
+        for account_type, entries in accounts_data.items():
+            for entry in entries:
+                for account_name, balance in entry.items():
+                    grand_total_balance += balance  # Add to grand total balance
+
+    # Add collapsible section for grand total balance at the top
+    formatted_grand_total_balance = "{:,.2f}".format(grand_total_balance)
+    html_content += f"""
+        <button id="grandTotal-button" class="collapsible" onclick="toggleCollapsible('grandTotal-button', 'grandTotal-content')">Total Retirement Balance</button>
+        <div id="grandTotal-content" class="content" style="max-height: 0; overflow: hidden; transition: max-height 0.2s ease-out;">
+            <table class='{table_class}'>
+                <tbody>
+                    <tr>
+                        <th>Total Retirement Balance</th>
+                        <td>{formatted_grand_total_balance}</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    """
+
+    # Iterate through each parent in the retirement data
+    for index, parent in enumerate(retirement_data):
+        parent_name = parent.get("name", "Unknown Parent")  # Get parent's name or default
+        parent_id = f"parentDetails-{index}"  # Unique ID for each parent's details section
+
+        # Add collapsible section for each parent's details
+        html_content += f"""
+            <button id="{parent_id}-button" class="collapsible" onclick="toggleCollapsible('{parent_id}-button', '{parent_id}-content')">{escape(parent_name)} Retirement</button>
+            <div id="{parent_id}-content" class="content" style="max-height: 0; overflow: hidden; transition: max-height 0.2s ease-out;">
+                <h3>Contributions</h3>
+                <table class='{table_class}'>
+                    <thead>
+                        <tr><th>Type</th><th>Contribution</th><th>Amount</th></tr>
+                    </thead>
+                    <tbody>
+        """
+
+        # Initialize totals
+        total_contributions = 0
+        total_accounts_balance = 0
+
+        # Generate table for contributions
+        contributions_data = parent.get("contributions", {})
+        for contribution_type, entries in contributions_data.items():
+            for entry in entries:
+                for contribution, amount in entry.items():
+                    formatted_amount = "{:,.2f}".format(amount)  # Format amount with commas
+                    html_content += f"<tr><td>{escape(contribution_type)}</td><td>{escape(contribution)}</td><td>{formatted_amount}</td></tr>\n"
+                    total_contributions += amount  # Add to total contributions
+
+        # Display total contributions
+        formatted_total_contributions = "{:,.2f}".format(total_contributions)
+        html_content += f"<tr><td colspan='2'><strong>Total Contributions</strong></td><td><strong>{formatted_total_contributions}</strong></td></tr>\n"
+        html_content += "</tbody>\n</table>\n"  # End of contributions table
+
+        # Generate table for accounts
+        html_content += """
+                <h3>Accounts</h3>
+                <table class='{table_class}'>
+                    <thead>
+                        <tr><th>Account Type</th><th>Account Name</th><th>Balance</th></tr>
+                    </thead>
+                    <tbody>
+        """
+
+        accounts_data = parent.get("accounts", {})
+        for account_type, entries in accounts_data.items():
+            for entry in entries:
+                for account_name, balance in entry.items():
+                    formatted_balance = "{:,.2f}".format(balance)  # Format balance with commas
+                    html_content += f"<tr><td>{escape(account_type)}</td><td>{escape(account_name)}</td><td>{formatted_balance}</td></tr>\n"
+                    total_accounts_balance += balance  # Add to total accounts balance
+
+        # Display total account balances
+        formatted_total_accounts = "{:,.2f}".format(total_accounts_balance)
+        html_content += f"<tr><td colspan='2'><strong>Total Account Balances</strong></td><td><strong>{formatted_total_accounts}</strong></td></tr>\n"
+        html_content += "</tbody>\n</table>\n"  # End of accounts table
+
+        html_content += "</div>  <!-- End of hidden details section -->\n"  # End of parent section
+
     return html_content

@@ -33,3 +33,20 @@ function toggleSectionVisibility(sectionId) {
     }
 }
 
+
+function toggleCollapsible(buttonId, contentId) {
+    const content = document.getElementById(contentId);
+    const button = document.getElementById(buttonId);
+
+    if (content.style.maxHeight) {
+        // If the content is expanded, collapse it
+        content.style.maxHeight = null;
+        button.classList.remove('active');
+    } else {
+        // If the content is collapsed, expand it
+        content.style.maxHeight = content.scrollHeight + "px";
+        button.classList.add('active');
+    }
+}
+
+

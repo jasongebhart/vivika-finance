@@ -180,6 +180,7 @@ def calculate_future_value_byrate(present_value, annual_growth_rate, years):
         float: The future value of the investment.
     """
     logging.debug("Entering <function ")
+    logging.info("Calculating future_value = present_value * (1 + annual_growth_rate) ** years")
     logging.info(f"{'present_value:':<30} {format_currency(present_value)}")
     logging.info(f"{'annual_growth_rate:':<30} {annual_growth_rate}")
     logging.info(f"{'years:':<30} {years}")
@@ -188,7 +189,7 @@ def calculate_future_value_byrate(present_value, annual_growth_rate, years):
     logging.info(f"{'future value:':<30} {format_currency(future_value)}")
     return future_value
 
-def calculate_total_expense(config_data):
+def calculate_total_school_expense(config_data):
     """
     Calculates the total expenses for the next n years based on the provided annual expenses (handles potential missing keys using defaults).
 
@@ -197,7 +198,7 @@ def calculate_total_expense(config_data):
 
     Returns:
         tuple: A tuple containing total expense, high school total expense, and college total expense.
-               (total_expense, highschool_total_expense, college_total_expense)
+               (total_school_expense, highschool_total_school_expense, college_total_school_expense)
     """
     logging.debug("Entering <function ")
     log_messages = [
@@ -209,7 +210,7 @@ def calculate_total_expense(config_data):
     for message in log_messages:
         logging.info(f"{message}")
 
-    total_expense = 0
+    total_school_expense = 0
     total_highschool_expense = 0
     total_college_expense = 0
     years = config_data.get('years', 0)  # Get 'years' with default 0 if missing
@@ -226,18 +227,18 @@ def calculate_total_expense(config_data):
             highschool_expense = highschool_expenses[i] if i < len(highschool_expenses) else 0
             total_college_expense += college_expense
             total_highschool_expense += highschool_expense
-            total_expense += college_expense + highschool_expense
+            total_school_expense += college_expense + highschool_expense
 
             logging.info(
                 f"{i+1:<6} {format_currency(college_expense):>14} {format_currency(highschool_expense):>14}"
             )
             # logging.info(f"Year {i+1}: college_expense={college_expense}, highschool_expense={highschool_expense}")
     
-    logging.info(f"{'Total School Expense:':<36} {format_currency(total_expense)}")
+    logging.info(f"{'Total School Expense:':<36} {format_currency(total_school_expense)}")
     logging.info(f"{'Total High School Expense:':<36} {format_currency(total_highschool_expense)}")
     logging.info(f"{'Total College Expense:':<36} {format_currency(total_college_expense)}")
 
-    return total_expense, total_highschool_expense, total_college_expense
+    return total_school_expense, total_highschool_expense, total_college_expense
 
 
 def calculate_balance(balance, interest_rate, years, yearly_gain=0, gains=[], expenses=[], yearly_expense=0):
@@ -300,11 +301,11 @@ def calculate_expenses(college_expenses, highschool_expenses):
     """
     logging.debug("Entering <function ")
     logging.info(f"Total expenses with college_expenses: {college_expenses}, highschool_expenses: {highschool_expenses}")
-    total_expenses = [college + highschool for college, highschool in zip(college_expenses, highschool_expenses)]
+    total_school_expenses = [college + highschool for college, highschool in zip(college_expenses, highschool_expenses)]
 
-    logging.info(f"Total school expenses: {total_expenses}")
+    logging.info(f"Total school expenses: {total_school_expenses}")
 
-    return total_expenses
+    return total_school_expenses
 
 def calculate_remaining_principal(original_principal, interest_rate, months_to_pay, number_of_payments):
     """
@@ -354,13 +355,14 @@ def calculate_remaining_principal(original_principal, interest_rate, months_to_p
 
 
 class House:
-    def __init__(self, cost_basis=0, closing_costs=0, home_improvement=0, value=0, mortgage_principal=0, 
+    def __init__(self, description="",cost_basis=0, closing_costs=0, home_improvement=0, value=0, mortgage_principal=0, 
                  commission_rate=0.0, annual_growth_rate=0.0461, interest_rate=0.0262, 
                  monthly_payment=8265.21, number_of_payments=276, payments_made=36, sell_house=False):
         """
         Initializes a House object with its purchase costs, value, and mortgage details.
 
         Args:
+            description (string, optional): Brief description of house. (default: blank)
             cost_basis (float, optional): The original purchase price of the house. (default: 0)
             closing_costs (float, optional): Closing costs associated with the purchase. (default: 0)
             home_improvement (float, optional): Cost of home improvements made. (default: 0)
@@ -374,6 +376,7 @@ class House:
             sell_house (bool, optional): Indicates if the house is to be sold. (default: False)
         """
         logging.info("Calling Class: ")
+        self.description = description
         self.cost_basis = cost_basis
         self.closing_costs = closing_costs
         self.home_improvement = home_improvement
@@ -392,7 +395,7 @@ class House:
         """
         Returns a string representation of the House object.
         """
-        return f"House Object:\nCost Basis: ${self.cost_basis}\nClosing Costs: ${self.closing_costs}\n" \
+        return f"House Object:\ndescription: {self.description}\nCost Basis: ${self.cost_basis}\nClosing Costs: ${self.closing_costs}\n" \
                f"Home Improvement Costs: ${self.home_improvement}\nCurrent Value: ${self.value}\n" \
                f"Remaining Principal: ${self.remaining_principal}\n" \
                f"Mortgage Principal: ${self.mortgage_principal}\nCommission Rate: {self.commission_rate}\n" \
@@ -430,7 +433,8 @@ class House:
         escrow = self.value * escrow_rate
         commission = self.value * commission_rate
         sale_basis = self.value - commission - escrow
-        
+
+        logging.info(f"{'House Value:':<39} {format_currency(self.value)}")          
         logging.info(f"{'sale basis:':<39} {format_currency(sale_basis)}")   
         logging.info(f"{'commission:':<39} {format_currency(commission)}")
         logging.info(f"{'commission_rate:':<39} {commission_rate}")
@@ -443,20 +447,21 @@ class House:
         Calculates the capital gains tax on selling the house, considering exclusion.
 
         Returns:
-            float: The amount of capital gains tax to be paid.
+            float: The amount of capital gains to be paid. Multiple this by the tax_rate to determine tax owed.
         """
         logging.debug("Entering <function ")
         sale_basis, commission = self.calculate_sale_basis()  
         basis = self.calculate_basis()
         capital_gain = sale_basis - basis
-        capital_gains_tax = max(0, capital_gain - CAPITAL_GAIN_EXCLUSION)
+        taxable_capital_gains = max(0, capital_gain - CAPITAL_GAIN_EXCLUSION)
 
-        logging.info(f"{'Capital gains tax:':<36} {format_currency(capital_gains_tax)}")
         logging.info(f"{'sale_basis:':<36} {format_currency(sale_basis)}")
         logging.info(f"{'basis:':<36} {format_currency(basis)}")
         logging.info(f"{'capital_gain:':<36} {format_currency(capital_gain)}")
+        logging.info(f"{'Capital Gain Exclusion:':<36} {format_currency(CAPITAL_GAIN_EXCLUSION)}")
+        logging.info(f"{'Taxable Capital Gains:':<36} {format_currency(taxable_capital_gains)}")
 
-        return capital_gains_tax
+        return taxable_capital_gains
 
     def calculate_remaining_principal(self):
         """
@@ -508,13 +513,16 @@ class House:
 def calculate_house_values(current_house, config_data):
     # Calculate sale basis and capital gains for the current house
     logging.debug("Entering <function ")
-    logging.info("In order realize the value of a house we need to determine the costs for selling it.")
+    logging.info("In order to realize the value of a house we need to determine the costs for selling it.")
     commission_rate_myhouse = config_data['house']['commission_rate']
     sale_basis, total_commission = current_house.calculate_sale_basis(commission_rate=commission_rate_myhouse)
-    capital_gain = current_house.calculate_capital_gains()
+    taxable_capital_gains = current_house.calculate_capital_gains()
+    logging.info(f"{'Taxable Capital Gains:':<37} {format_currency(taxable_capital_gains)}")
+    capital_gain = taxable_capital_gains * .15
+    logging.info(f"{'Capital Gains Tax:':<37} {format_currency(capital_gain)}")
     house_net_worth = current_house.calculate_net_worth()
-    capital_from_house = sale_basis - current_house.mortgage_principal - capital_gain
-
+    capital_from_house = sale_basis - current_house.remaining_principal - capital_gain
+    logging.info("capital_from_house is sale_basis - remaining principal - capital_gain tax")
     logging.info(f"{'Capital from house:':<37} {format_currency(capital_from_house)}")
     
     return sale_basis, total_commission, capital_gain, house_net_worth, capital_from_house
@@ -528,26 +536,41 @@ def calculate_new_house_values(new_house, capital_from_house, config_data):
     # Calculate sale basis and capital gains for the new house
     commission_rate_newhouse = config_data['new_house']['commission_rate']
     new_house_sale_basis, new_house_total_commission = new_house.calculate_sale_basis(commission_rate=commission_rate_newhouse)
-    new_house_capital_gain = new_house.calculate_capital_gains()
+    new_house_taxable_capital_gain = new_house.calculate_capital_gains()
+    logging.info(f"{'New House Taxable Capital Gains:':<33} {format_currency(new_house_taxable_capital_gain)}")
+    new_house_capital_gains_tax = new_house_taxable_capital_gain * .15
+    logging.info(f"{'New House Capital Gains Tax:':<33} {format_currency(new_house_capital_gains_tax)}")
     
     # Set the new_house_value
-    new_house_cost = config_data['new_house']['cost_basis']
-    house_value_rate = config_data.get('house_value_rate', 1.0)
-    new_house_value = new_house_cost * house_value_rate
-    new_house_fees = new_house_cost * .01
+    years = config_data['years']
+    annual_growth_rate = config_data['new_house']['annual_growth_rate']
+    new_house_cost_basis = config_data['new_house']['cost_basis']
+    new_house_future_value = new_house_cost_basis * (1 + annual_growth_rate) ** years
+    new_house_fees = config_data['new_house']['cost_basis'] * .01
     
     # Calculate the investment capital from the sale of the current house
-    invest_capital = capital_from_house - new_house_cost - new_house_fees
+    logging.info(f"{'invest_capital:':<25} {format_currency(capital_from_house)} -{format_currency(new_house_cost_basis)} -{format_currency(new_house_fees)}")
+    invest_capital = capital_from_house - new_house_cost_basis - new_house_fees
+    logging.info(f"{'invest_capital:':<33} {format_currency(invest_capital)}")
     interest_rate = config_data['interest_rate']
-    years = config_data['years']
     house_capital_investment = calculate_future_value(invest_capital, 0, 0, interest_rate, years)
+    logging.info(f"{config_data['new_house']['annual_growth_rate']}")
+    house_values = {
+        "sale_basis": new_house_sale_basis,
+        "total_commission": new_house_total_commission,
+        "capital_gain": new_house_taxable_capital_gain,
+        "new_house_cost": new_house_cost_basis,
+        "new_house_future_value": new_house_future_value,
+        "new_house_fees": new_house_fees,
+        "invest_capital": invest_capital,
+        "house_capital_investment": house_capital_investment
+    }
 
-    logging.info(f"<calculate_new_house_values> New house values: sale_basis={new_house_sale_basis}, total_commission={new_house_total_commission}, "
-                    f"capital_gain={new_house_capital_gain}, new_house_cost={new_house_cost}, new_house_value={new_house_value}, "
-                    f"new_house_fees={new_house_fees}, invest_capital={invest_capital}, house_capital_investment={house_capital_investment}")
+    formatted_values = "\n".join([f"{key}={format_currency(value)}" for key, value in house_values.items()])
+    logging.info(f"New house values:\n{formatted_values}")
 
-    return (new_house_sale_basis, new_house_total_commission, new_house_capital_gain,
-            new_house_cost, new_house_value, new_house_fees, 
+    return (new_house_sale_basis, new_house_total_commission, new_house_taxable_capital_gain,
+            new_house_cost_basis, new_house_future_value, new_house_fees, 
             invest_capital, house_capital_investment)
 
 def initialize_variables():
@@ -774,7 +797,7 @@ def initialize_house_variables(config_data):
         tuple: A tuple containing the initialized variables.
     """
     logging.debug("Entering <function ")
-
+    logging.info("-------------------------- Initialize House")
     # Create House instances
     if 'house' in config_data and config_data['house'] is not None:
         logging.info(f"{'Current House =':<33} Defined")
@@ -787,7 +810,7 @@ def initialize_house_variables(config_data):
     # current_house = create_house_instance(config_data['house'])
     # Check if 'new_house' key exists and has a non-None value
     if 'new_house' in config_data and config_data['new_house'] is not None:
-        logging.info("New House is defined.")
+        logging.info("A New House is defined.")
         new_house = create_house_instance(config_data['new_house'])
     else:
         # Handle the case where new_house_data is None or empty
@@ -809,7 +832,16 @@ def create_house_instance(house_data):
     logging.debug(f"Entering <function ")
     if house_data:
         house_instance = House(**house_data)
-        house_instance.calculate_remaining_principal() 
+
+        # Check if the mortgage principal is 0, meaning the house is not financed
+        if house_instance.mortgage_principal == 0:
+            logging.info(f"The house is not financed (Mortgage Principal: {house_instance.mortgage_principal}).")
+        else:
+            # Calculate the remaining principal only if the house is financed
+            house_instance.calculate_remaining_principal()
+            logging.info(f"Remaining mortgage principal: {house_instance.remaining_principal}")
+
+
         logging.info(f"\n {house_instance}\n")
         logging.debug(f"Exiting <function ")
         return house_instance
@@ -877,11 +909,11 @@ def calculate_income_expenses(config_data, tax_rate):
     yearly_gain, surplus_type, monthly_surplus = calculate_surplus(yearly_data, total_monthly_expenses)
 
     # Calculate expenses
-    total_expense, total_highschool_expense, total_college_expense = calculate_total_expense(config_data)
+    total_school_expense, total_highschool_expense, total_college_expense = calculate_total_school_expense(config_data)
     yearly_income_deficit = int(config_data['yearly_expense'])
 
 
-    # Add expenses to the income_calculated_data dictionary
+    # Add expenses to the calculated_data dictionary
     calculated_data = {
         "yearly_data": yearly_data,
         "total_monthly_expenses": total_monthly_expenses,
@@ -889,7 +921,7 @@ def calculate_income_expenses(config_data, tax_rate):
         "yearly_gain": yearly_gain,
         "surplus_type": surplus_type,
         "monthly_surplus": monthly_surplus,
-        "total_expense": total_expense,
+        "total_school_expense": total_school_expense,
         "total_highschool_expense": total_highschool_expense,
         "total_college_expense": total_college_expense,
         "yearly_income_deficit": yearly_income_deficit,
@@ -907,21 +939,31 @@ def calculate_investment_values(config_data, yearly_gain):
 
     logging.info("Employee Stock Plan")
     total_employee_stockplan = calculate_future_value(
-        config_data.get('employee_stock_purchase', 0), config_data.get('employee_stock_purchase', 0),
-        increase_contribution=0, interest_rate=config_data.get('interest_rate', 0), years=config_data.get('years', 0))
+        config_data.get('employee_stock_purchase', 0),
+        config_data.get('employee_stock_purchase', 0),
+        increase_contribution=0,
+        interest_rate=config_data.get('interest_rate', 0),
+        years=config_data.get('years', 0))
     logging.info(f"{'Total Employee Stock Plan':<31} {format_currency(total_employee_stockplan)}")
     school_expenses = [a + b for a, b in zip(config_data.get('college_expenses', []), config_data.get('highschool_expenses', []))]
 
     logging.info(f"Investments & Expenses ")
     balance_with_expenses = calculate_balance(
-        config_data.get('investment_balance', 0), config_data.get('interest_rate', 0), config_data.get('years', 0),
-        yearly_gain=yearly_gain, gains=config_data.get('gains', 0), expenses=school_expenses,
+        config_data.get('investment_balance', 0),
+        config_data.get('interest_rate', 0),
+        config_data.get('years', 0),
+        yearly_gain=yearly_gain,
+        gains=config_data.get('gains', 0),
+        expenses=school_expenses,
         yearly_expense=config_data.get('yearly_expense', 0))
     
     logging.info(f"Retirement Valuation")
     future_retirement_value_contrib = calculate_future_value(
-        config_data.get('retirement_principal', 0), config_data.get('initial_contribution', 0),
-        config_data.get('increase_contribution', 0), config_data.get('interest_rate', 0), config_data.get('years', 0))
+        config_data.get('retirement_principal', 0),
+        config_data.get('initial_contribution', 0),
+        config_data.get('increase_contribution', 0),
+        config_data.get('interest_rate', 0),
+        config_data.get('years', 0))
 
     investment_values = {
         "total_employee_stockplan": total_employee_stockplan,
@@ -958,21 +1000,36 @@ def calculate_future_house_values(new_house, config_data, current_house, new_hou
 
 
 def calculate_future_net_worth_houseinfo(new_house, calculated_data, house_info):
-    logging.debug("Entering <function ")
+    logging.debug("Entering calculate_future_net_worth_houseinfo")
 
-    future_retirement_value_contrib = calculated_data["future_retirement_value_contrib"]
-    balance_with_expenses = calculated_data["balance_with_expenses"]
-    total_employee_stockplan = calculated_data["total_employee_stockplan"]
+    # Retrieve calculated data
+    future_retirement_value_contrib = calculated_data.get("future_retirement_value_contrib", 0)
+    balance_with_expenses = calculated_data.get("balance_with_expenses", 0)
+    total_employee_stockplan = calculated_data.get("total_employee_stockplan", 0)
 
+    # Check for house_info keys, set to 0 if missing
+    new_house_value = house_info.get("new_house_value", 0)
+    house_capital_investment = house_info.get("house_capital_investment", 0)
+    house_networth_future = house_info.get("house_networth_future", 0)
+
+    # Calculation based on new_house existence
     if new_house:
-        combined_networth_future = future_retirement_value_contrib + house_info["new_house_value"] + balance_with_expenses + house_info["house_capital_investment"] + total_employee_stockplan
+        combined_networth_future = (
+            future_retirement_value_contrib + new_house_value + 
+            balance_with_expenses + house_capital_investment + total_employee_stockplan
+        )
         logging.info(f"{'New House?':<23} Yes")
     else:
-        combined_networth_future = future_retirement_value_contrib + balance_with_expenses + house_info["house_networth_future"] + total_employee_stockplan
-        logging.info(f"{'New House?':<23} {'No'}")
+        combined_networth_future = (
+            future_retirement_value_contrib + balance_with_expenses + 
+            house_networth_future + total_employee_stockplan
+        )
+        logging.info(f"{'New House?':<23} No")
 
+    # Log the final projected net worth
     logging.info(f"{'Projected Net Worth:':<23} {format_currency(combined_networth_future)}")
     return combined_networth_future
+
 
 
 def calculate_financial_values(config_data, tax_rate):
@@ -1004,21 +1061,21 @@ def calculate_house_data(current_house, config_data, new_house):
     if config_data["home_tenure"] == "Own":
         sale_basis, total_commission, capital_gain, house_net_worth, capital_from_house = calculate_house_values(current_house, config_data)
         if not new_house:
-            new_house_cost = new_house_value = new_house_fees = invest_capital = house_capital_investment = 0
+            new_house_cost_basis = new_house_future_value = new_house_fees = invest_capital = house_capital_investment = 0
         else:
-            new_house_sale_basis, new_house_total_commission, new_house_capital_gain, new_house_cost, new_house_value, new_house_fees, invest_capital, house_capital_investment = calculate_new_house_values(new_house, capital_from_house, config_data)
+            new_house_sale_basis, new_house_total_commission, new_house_taxable_capital_gain, new_house_cost_basis, new_house_future_value, new_house_fees, invest_capital, house_capital_investment = calculate_new_house_values(new_house, capital_from_house, config_data)
         
     elif config_data["home_tenure"] == "Rent":
         # Calculate house-related values for renting
         sale_basis, total_commission, capital_gain, house_net_worth, capital_from_house = calculate_house_values(current_house, config_data)
-        new_house_cost = new_house_value = new_house_fees = invest_capital = 0
+        new_house_cost_basis = new_house_future_value = new_house_fees = invest_capital = 0
         house_value_future = house_networth_future = remaining_principal = 0
-        new_house_sale_basis, new_house_total_commission, new_house_capital_gain, new_house_cost, new_house_value, new_house_fees, invest_capital, house_capital_investment = calculate_new_house_values(new_house, capital_from_house, config_data)
+        new_house_sale_basis, new_house_total_commission, new_house_taxable_capital_gain, new_house_cost_basis, new_house_future_value, new_house_fees, invest_capital, house_capital_investment = calculate_new_house_values(new_house, capital_from_house, config_data)
 
         # Here, you can sell the current house and invest the money if desired
     else:
         raise ValueError("Invalid value for home_tenure. Use 'own' or 'rent'.")
-    house_networth_future, house_value_future, remaining_principal = calculate_future_house_values(new_house, config_data, current_house, new_house_value)    
+    house_networth_future, house_value_future, remaining_principal = calculate_future_house_values(new_house, config_data, current_house, new_house_future_value)    
     logging.debug(f"Exiting <function ")
     return {
         "sale_basis": sale_basis,
@@ -1028,8 +1085,8 @@ def calculate_house_data(current_house, config_data, new_house):
         "house_net_worth": house_net_worth,
         "capital_from_house": capital_from_house,
         "new_house": new_house,
-        "new_house_cost": new_house_cost,
-        "new_house_value": new_house_value,
+        "new_house_cost": new_house_cost_basis,
+        "new_house_value": new_house_future_value,
         "new_house_fees": new_house_fees,
         "invest_capital": invest_capital, 
         "house_capital_investment": house_capital_investment,
@@ -1091,15 +1148,20 @@ def calculate_expenses_and_net_worth(config_data, calculated_data, house_info):
     
     calculated_data["LIVING_EXPENSES"] = calculate_living_expenses(config_data, calculated_data)
     calculated_data["scenario_info"] = calculate_scenario_info(config_data, calculated_data)
-    calculated_data["school_expenses"] = calculate_school_expenses(config_data, calculated_data)
+    calculated_data["avg_yearly_fee"] = calculate_avg_yearly_school_fee(config_data, calculated_data)
+    calculated_data["yearly_net_minus_school"] = calculate_yearly_net_minus_school(config_data, calculated_data)
+
 
     # Calculate combined net worth
     calculated_data["combined_networth"] = calculate_combined_net_worth(config_data, house_info["house_net_worth"])
+    new_house = house_info.get("new_house", {})
+    calculated_data = calculated_data or {}
+    house_info = house_info or {}
+
     calculated_data["combined_networth_future"] = calculate_future_net_worth_houseinfo(
-        house_info["new_house"],
-        calculated_data,
-        house_info
+        new_house, calculated_data, house_info
     )
+
 
 
 def calculate_scenario_info(config_data, calculated_data):
@@ -1147,7 +1209,31 @@ def calculate_living_expenses(config_data, calculated_data):
     log_data(living_expenses_data, title="Living Expenses")
     return living_expenses_data
 
-def calculate_school_expenses(config_data, calculated_data):
+
+def retrieve_assumptions(config_data):
+    """
+    Retrieve assumption data used in calculations
+
+    Args:
+        config_data (object): Object containing configuration data for the financial scenario.
+        calculated_data (object): Object containing calculated data for the financial scenario.
+
+    Returns:
+        living_expenses_data (dict): Dictionary containing living expenses and location data.
+    """
+    logging.debug("Entering <function ")
+
+    data = {
+        "Assumed tax rate": config_data["assumed_tax_rate"],
+        "federal tax rate dual": config_data["federal_tax_rate_dual"],
+        "State tax rate dual": config_data["state_tax_rate_dual"],
+        "Interest rate": config_data["interest_rate"],
+        "house_annual_growth_rate": config_data.get("house", {}).get("annual_growth_rate")
+    }
+    logging.info(f"{data}")
+    return data
+
+def calculate_school_expenses_old(config_data, calculated_data):
     """
 
     Args:
@@ -1160,8 +1246,8 @@ def calculate_school_expenses(config_data, calculated_data):
     logging.debug("Entering <function ")
 
     years = config_data["years"]
-    avg_yearly_fee = calculated_data["total_expense"] / years
-    yearly_net_minus_school = calculated_data["yearly_gain"] - (calculated_data["total_expense"] / years)
+    avg_yearly_fee = calculated_data["total_school_expense"] / years
+    yearly_net_minus_school = calculated_data["yearly_gain"] - (calculated_data["total_school_expense"] / years)
 
     logging.info(f"{'Average Yearly School Fee:':<34} {format_currency(avg_yearly_fee)}")
     logging.info(f"{'Yearly Net (Minus School):':<34} {format_currency(yearly_net_minus_school)}")
@@ -1171,6 +1257,50 @@ def calculate_school_expenses(config_data, calculated_data):
         "Yearly Net Minus School ": yearly_net_minus_school
     }
     return school_expenses_data
+
+def calculate_avg_yearly_school_fee(config_data, calculated_data):
+    """
+    Calculate and log the average yearly school fee.
+
+    Args:
+        config_data (object): Object containing configuration data for the financial scenario.
+        calculated_data (object): Object containing calculated data for the financial scenario.
+
+    Returns:
+        float: The average yearly school fee.
+    """
+    logging.debug("Entering calculate_avg_yearly_school_fee function")
+
+    years = config_data["years"]
+    avg_yearly_fee = calculated_data["total_school_expense"] / years
+
+    # Log the average yearly school fee
+    logging.info(f"{'Average Yearly School Fee:':<34} {format_currency(avg_yearly_fee)}")
+
+    return avg_yearly_fee
+
+
+def calculate_yearly_net_minus_school(config_data, calculated_data):
+    """
+    Calculate and log the yearly net minus school expenses.
+
+    Args:
+        config_data (object): Object containing configuration data for the financial scenario.
+        calculated_data (object): Object containing calculated data for the financial scenario.
+
+    Returns:
+        float: The yearly net income minus school expenses.
+    """
+    logging.debug("Entering calculate_yearly_net_minus_school function")
+
+    avg_yearly_fee = calculate_avg_yearly_school_fee(config_data, calculated_data)  # Reuse the first function
+    yearly_net_minus_school = calculated_data["yearly_gain"] - avg_yearly_fee
+
+    # Log the yearly net minus school expenses
+    logging.info(f"{'Yearly Net (Minus School):':<34} {format_currency(yearly_net_minus_school)}")
+
+    return yearly_net_minus_school
+
 
 def analyze_tuition_data(config_data):
     """Analyzes tuition data and calculates total and average expenses per year.
@@ -1185,15 +1315,15 @@ def analyze_tuition_data(config_data):
     results = []
     for child in config_data["children"]:
         child_data = {"name": child["name"]}
-        child_data["total_expenses"] = {}
+        child_data["total_school_expenses"] = {}
         child_data["average_expenses"] = {}
 
         for expense_type in ["college", "high_school"]:
-            child_data["total_expenses"][expense_type] = sum(expense["cost"] for expense in child["expenses"][expense_type])
-            child_data["average_expenses"][expense_type] = child_data["total_expenses"][expense_type] / len(child["expenses"][expense_type])
+            child_data["total_school_expenses"][expense_type] = sum(expense["cost"] for expense in child["expenses"][expense_type])
+            child_data["average_expenses"][expense_type] = child_data["total_school_expenses"][expense_type] / len(child["expenses"][expense_type])
 
-        child_data["total_expenses"]["combined"] = sum(child_data["total_expenses"].values())
-        child_data["average_expenses"]["combined"] = child_data["total_expenses"]["combined"] / 4  # Assuming 4 years of data
+        child_data["total_school_expenses"]["combined"] = sum(child_data["total_school_expenses"].values())
+        child_data["average_expenses"]["combined"] = child_data["total_school_expenses"]["combined"] / 4  # Assuming 4 years of data
 
         results.append(child_data)
 
@@ -1320,14 +1450,56 @@ def generate_report(config_data, scenario_name):
         "calculated_data": calculated_data,
         "house_info": house_info,
         "current_house": current_house,
+        "new_house": new_house,
     }
 
     future_value_html = report_html_generator.generate_future_value_html_table(report_data)
     current_value_html = report_html_generator.generate_current_networth_html_table(report_data)
-    scenario_summary_html = report_html_generator.generate_section_html("Scenario", calculated_data.get("scenario_info", {}))
-    living_expenses_html = report_html_generator.generate_section_html("Cash Flow Before School", calculated_data.get("LIVING_EXPENSES", {}), custom_formatter=format_currency)
-    school_expenses_html = report_html_generator.generate_section_html("Projected School Costs", calculated_data.get("school_expenses", {}), custom_formatter=format_currency)
+    scenario_summary_html = report_html_generator.generate_section_html(
+        "Scenario",
+        calculated_data.get("scenario_info", {})
+    )
+    yearly_net_html = report_html_generator.generate_section_html(
+        "Cash Flow Before School Fees",
+        calculated_data.get("LIVING_EXPENSES", {}),
+        custom_formatter=format_currency
+    )
+    avg_yearly_fee_html = report_html_generator.generate_section_html(
+        "Projected Average Yearly School Costs",
+        calculated_data.get("avg_yearly_fee", {}),
+        custom_formatter=format_currency
+    )
+    cashflow_after_school_fee_html = report_html_generator.generate_section_html(
+        "Cash Flow After School Fees",
+        calculated_data.get("yearly_net_minus_school", {}),
+        custom_formatter=format_currency
+    )
+    assumptions_html = report_html_generator.generate_section_html(
+        section_title="Assumptions",
+        data=retrieve_assumptions(config_data),
+        custom_formatter=None,
+        collapsible=True
+    )
+    
+    monthly_expenses_html = report_html_generator.generate_section_html(
+        section_title="Monthly Expenses Breakdown",
+        data=calculated_data.get("monthly_expenses_breakdown", {}),
+        custom_formatter=format_currency,
+        collapsible=True
+    )
+    expenses_not_factored_html = report_html_generator.generate_section_html(
+        section_title="Expenses Not Factored In",
+        data=calculated_data.get("expenses_not_factored_in_report", {}),
+        custom_formatter=None,
+        collapsible=True
+    )
     school_expenses_table_html = report_html_generator.generate_table_for_child(config_data, headers=["School", "Year", "Cost"])
+    retirement_table_html = report_html_generator.generate_retirement_table(config_data, table_class="retirement-table")
+    investment_table_html = report_html_generator.generate_investment_table(config_data.get("Investment", {}),format_currency)
+    # current_house_html = report_html_generator.generate_current_house_html(report_data["current_house"])
+    current_house_html = report_html_generator.generate_current_house_html(current_house)
+    new_house_html = report_html_generator.generate_new_house_html(new_house)
+
 
     summary_data = {
         "assumption_description": config_data.get("assumption_description", ""),
@@ -1336,9 +1508,17 @@ def generate_report(config_data, scenario_name):
         "future_value": future_value_html,
         "current_value": current_value_html,
         "scenario_summary_info": scenario_summary_html,
-        "living_expenses_location": living_expenses_html,
-        "school_expenses": school_expenses_html,
+        "yearly_net_html": yearly_net_html,
+        "assumptions_html": assumptions_html,
+        "monthly_expenses_html": monthly_expenses_html,
+        "expenses_not_factored_html": expenses_not_factored_html,
+        "avg_yearly_fee_html": avg_yearly_fee_html,
+        "cashflow_after_school_fee_html": cashflow_after_school_fee_html,
         "school_expenses_table_html": school_expenses_table_html,
+        "investment_table_html": investment_table_html,
+        "retirement_table_html": retirement_table_html,
+        "current_house_html": current_house_html,
+        "new_house_html": new_house_html,
     }
 
     scenario_html = report_html_generator.generate_html(report_data)
