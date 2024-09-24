@@ -50,10 +50,58 @@ h2 {
 }
 
 .header {
-    background-color: #f1f1f1;
-    padding: 7px;
-    border-radius: 5px;
+    flex-grow: 1;
+    margin-bottom: 10px;
+}
+
+.content-wrapper {
+    display: flex;
+    justify-content: space-between;  /* Align left and right sections */
+    align-items: flex-start;         /* Align both sections at the top */
+    flex-wrap: nowrap;               /* Ensure no wrapping */
+    gap: 10px;                       /* Add space between columns */
+}
+
+/* Main content on the right */
+.main-content {
+    flex: 3;  /* Occupies 75% of the available space */
+    margin-left: 5px;  /* Adds spacing from the detailed-info section */
+    background-color: #fff;  /* Optional: add background color */
+    padding: 15px;
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.detailed-info {
+    flex: 1;  /* Occupies 25% of the available space */
+    margin-right: 10px;  /* Adds spacing from the right content */
+    background-color: #f9f9f9;
+    padding: 15px;
+    z-index: 1000;
+    border-radius: 5px;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+    max-width: 335px;  /* You can adjust this as needed */
+}
+
+.detailed-info th, td {
+    border: 1px solid #ddd; /* Set border */
+    padding: 8px; /* Add padding */
+    line-height: 1.4; /* Adjust line height */
+    min-width: auto; /* Set a minimum width for the cells */
+}
+
+.detailed-info:hover {
+    opacity: 1; /* Fully visible on hover */
+}
+
+.retirement-table {
+    width: 100%; /* Ensure table takes full width of the container */
+    table-layout: auto; /* Allow the table to resize based on content */
+}
+
+.retirement-table th, 
+.retirement-table td {
+    word-wrap: break-word; /* Ensure content wraps within the cells */
+    min-width: auto; /* Set a minimum width for the cells */
 }
 
 /* Styles for toggle buttons */
@@ -65,13 +113,11 @@ h2 {
     cursor: pointer; /* Change cursor to pointer */
 }
 
-/* Styles for table containers */
+/* Table layout adjustments (if necessary) */
 .table-container {
-    overflow-x: auto; /* Allow horizontal scrolling */
-    overflow: visible;
-    display: grid; /* Use grid layout */
-    grid-template-columns: 1fr 1fr; /* Two equal columns */
-    gap: 2px; /* Add space between tables */
+    display: grid;
+    grid-template-columns: 1fr 1fr;  /* Two equal columns */
+    gap: 2px;  /* Add space between tables */
 }
 
 .calculated-data-table{
@@ -93,7 +139,7 @@ th, td {
     padding: 8px; /* Add padding */
     line-height: 1.4; /* Adjust line height */
     white-space: nowrap; /* Prevent text from wrapping */
-    min-width: 150px; /* Set a minimum width for the cells */
+    min-width: 100px; /* Set a minimum width for the cells */
 }
 
 /* Styles for table header cells */
@@ -116,7 +162,7 @@ th {
     border: none;
     text-align: left;
     outline: none;
-    font-size: 15px;
+    font-size: 13px;
     margin-bottom: 5px;
 }
 
@@ -125,21 +171,22 @@ th {
 }
 
 .content {
-    padding: 0 18px;
+    padding: 0 10px;
     max-height: 0;
     overflow: hidden;
     transition: max-height 0.2s ease-out;
     background-color: #f9f9f9;
+    font-size: small;
 }
 
-/* Tooltip container */
-.house-net-worth-field {
+/* Tooltip container for net worth fields */
+.net-worth-field {
     position: relative;
     display: inline-block;
 }
 
-/* Tooltip text */
-.tooltip .tooltip-text {
+/* Tooltip text for net worth fields */
+.net-worth-field .tooltip .tooltip-text {
     visibility: hidden;
     width: 400px;
     background-color: #555;
@@ -154,21 +201,61 @@ th {
     margin-left: -80px;
     opacity: 0;
     transition: opacity 0.3s;
-    /* Add optional shadow */
     box-shadow: 0px 0px 10px rgba(0, 0, 0, 0.5);
 }
 
-/* Tooltip text on hover */
-.house-net-worth-field:hover .tooltip .tooltip-text {
+/* Tooltip text on hover for net worth fields */
+.net-worth-field:hover .tooltip .tooltip-text {
     visibility: visible;
     opacity: 1;
 }
 
+.tooltip-icon {
+    font-size: 0.9em; /* Adjust size as needed */
+    color: #007bff; /* Color to indicate interactivity */
+    cursor: pointer; /* Change cursor to pointer */
+    margin-left: 5px; /* Space between text and icon */
+    display: inline-block; /* Ensure proper alignment */
+}
 
-/* Responsive styles for smaller screens */
+.tooltip-icon:hover {
+    color: #0056b3; /* Darker color on hover */
+}
+
+
+/* Style for navigation links */
+nav a {
+    text-decoration: none; /* Remove underline */
+    color: #007BFF; /* Link color (blue in this case) */
+    font-weight: bold; /* Bold text for emphasis */
+    padding: 2px 4px; /* Add some padding */
+    background-color: #f0f0f0; /* Light background color for contrast */
+    border-radius: 5px; /* Rounded corners */
+    transition: background-color 0.3s ease; /* Smooth transition for hover effect */
+}
+
+/* Hover effect for navigation links */
+nav a:hover {
+    background-color: #007BFF; /* Change background color on hover */
+    color: white; /* Change text color on hover */
+}
+
+/* Optional: Centering navigation links if needed */
+nav {
+    text-align: center;
+    margin: 20px 0;
+}
+
+
+/* Add responsive behavior for smaller screens */
 @media (max-width: 800px) {
-    .table-container {
-        grid-template-columns: 1fr; /* Switch to single column layout */
+    .content-wrapper {
+        flex-direction: column;  /* Stack the sections vertically on smaller screens */
+    }
+
+.main-content, .detailed-info {
+        margin: 0;  /* Reset margins when stacked vertically */
+        max-width: 100%;  /* Ensure full width usage */
     }
 }
 
@@ -180,6 +267,54 @@ th {
     th, td {
         padding: 6px; /* Reduce padding for table cells */
     }
+}
+
+/* CSS for positioning aside as a sidebar */
+.index-navigation {
+    position: fixed;       /* Fix the aside so it stays in place while scrolling */
+    top: 57px;            /* Adjust the top margin to avoid overlapping with the header */
+    right: 20px;           /* Position it on the right side of the screen */
+    width: 285px;          /* Adjust the width of the sidebar */
+    background-color: #f9f9f9;  /* Light background for better readability */
+    padding: 15px;         /* Add some padding inside the aside */
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);  /* Add a slight shadow for a floating effect */
+}
+
+.index-navigation h2 {
+    font-size: 1.2em;
+    margin-bottom: 10px;
+}
+
+.index-navigation ul {
+    list-style-type: none;
+    padding: 0;
+}
+
+.index-navigation ul li {
+    margin: 8px 0;
+}
+
+.index-navigation ul li a {
+    text-decoration: none;
+    color: #007bff;        /* Link color */
+    font-weight: bold;
+    transition: background-color 0.3s ease, color 0.3s ease;  /* Smooth transition effect */
+}
+
+.index-navigation ul li a:hover {
+    text-decoration: none;          /* Remove underline on hover */
+    background-color: #007bff;      /* Background color on hover */
+    color: #ffffff;                 /* Text color changes to white on hover for contrast */
+    padding: 4px;                   /* Add some padding to the links for a clickable area */
+    border-radius: 4px;             /* Optional: rounded corners for a softer look */
+}
+/* Style for the active report link */
+.index-navigation a.active {
+    font-weight: bold;
+    background-color: #f0f0f0;
+    padding: 5px;
+    border-radius: 5px;
+    color: #333;
 }
 
 /* Print-specific styles */

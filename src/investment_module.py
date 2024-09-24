@@ -97,14 +97,23 @@ def parse_arguments():
     Returns:
         argparse.Namespace: Parsed arguments containing the configuration file path.
     """
-    logging.debug("Entering <function ")
+    logging.debug("Entering parse_arguments function")
 
+    # Define the argument parser
     parser = argparse.ArgumentParser(description='Process financial configuration.')
     parser.add_argument('config_file_path', nargs='?', default='config.finance.json', help='Path to the configuration file')
 
     args = parser.parse_args()
 
+    # Log the parsed arguments
     logging.info(f"Parsed arguments: {args}")
+    
+    # Check if the configuration file exists
+    config_path = Path(args.config_file_path)
+    if not config_path.exists():
+        logging.error(f"Configuration file {config_path} does not exist.")
+        sys.exit(1)  # Exits the program if the config file is not found
+    
     return args
 
 def load_config(config_file_path):
@@ -124,11 +133,36 @@ def load_config(config_file_path):
         return data
 
 def parse_and_load_config():
-    logging.debug("Entering <function ")
+    logging.debug("Entering parse_and_load_config")
 
+    # Load the main configuration file
     args = parse_arguments()
     config_data = load_config(args.config_file_path)
-    return config_data
+
+    # Get the directory of the configuration file
+    config_dir = Path(args.config_file_path).parent
+
+    # Load the general configuration file from the same directory
+    general_config_path = config_dir / 'general.finance.json'  # Construct the path
+    general_config_data = load_config(general_config_path)
+
+    return config_data, general_config_data
+
+
+def get_setting(key, scenarios_data, general_config):
+    """
+    Retrieves a setting from the scenarios data if available,
+    otherwise falls back to the general configuration.
+    """
+    if key in scenarios_data:
+        return scenarios_data[key]
+    elif key in general_config:
+        logging.info(f"Using fallback for '{key}' from general config.")
+        return general_config[key]
+    else:
+        logging.warning(f"Setting '{key}' not found in both scenarios and general config.")
+        return None  # or raise an exception if a default behavior is needed
+
 
 def calculate_future_value(principal, contribution, increase_contribution, interest_rate, years):
     """
@@ -241,7 +275,7 @@ def calculate_total_school_expense(config_data):
     return total_school_expense, total_highschool_expense, total_college_expense
 
 
-def calculate_balance(balance, interest_rate, years, yearly_gain=0, gains=[], expenses=[], yearly_expense=0):
+def calculate_balance(balance, interest_rate, years, calculated_yearly_gain=0, gains=[], expenses=[], yearly_expense=0):
     """
     Calculates the ending balance with compounding interest, considering yearly
     net gains or expenses.
@@ -250,7 +284,7 @@ def calculate_balance(balance, interest_rate, years, yearly_gain=0, gains=[], ex
         balance (float): Initial investment amount.
         interest_rate (float): Annual interest rate.
         years (int): Number of years.
-        yearly_gain (float, optional): Constant yearly gain (default: 0).
+        calculated_yearly_gain (float, optional): Constant yearly gain (default: 0).
         gains (list of float, optional): A list of annual gains (default: []).
         expenses (list of float, optional): A list of annual expenses (default: []).
         yearly_expense (float, optional): An additional annual expense (default: 0).
@@ -264,7 +298,7 @@ def calculate_balance(balance, interest_rate, years, yearly_gain=0, gains=[], ex
         f" balance={format_currency(balance)}\n"
         f" interest_rate={interest_rate}\n"
         f" years={years}\n"
-        f" yearly_gain={format_currency(yearly_gain)}\n"
+        f" calculated_yearly_gain={format_currency(calculated_yearly_gain)}\n"
         f" gains={gains}\n"
         f" expenses={expenses}\n"
         f" yearly_expense={yearly_expense}\n"
@@ -275,7 +309,7 @@ def calculate_balance(balance, interest_rate, years, yearly_gain=0, gains=[], ex
 
     for year in range(years):
         interest = balance * interest_rate
-        net_gain = yearly_gain if yearly_gain != 0 else gains[year] if year < len(gains) else 0
+        net_gain = calculated_yearly_gain if calculated_yearly_gain != 0 else gains[year] if year < len(gains) else 0
         net_expense = expenses[year] if year < len(expenses) else 0
         balance += interest + net_gain - net_expense - yearly_expense
 
@@ -715,7 +749,7 @@ def can_cover_school_expenses_per_year(yearly_surplus, school_expenses):
     return report
 
 
-def get_work_status(spouse1_income, spouse2_income):
+def get_work_status(config_data):
     """
     Determines the work status based on spouse incomes.
 
@@ -727,13 +761,17 @@ def get_work_status(spouse1_income, spouse2_income):
         A string indicating the work status ("Both Parents Work", "One Parent Works", or "No Parents Work").
     """
     logging.debug("Entering <function ")
-
+    spouse1_income = config_data.get("spouse1_yearly_income_base", 0)
+    spouse2_income = config_data.get("spouse2_yearly_income_base", 0)
+    parent_one = config_data.get("parent_one", "Parent 1")
+    parent_two = config_data.get("parent_two", "Parent 2")
+     
     if spouse1_income is not None and spouse2_income is not None and spouse1_income > 0 and spouse2_income > 0:
-        work_status = "Both Parents Work"
+        work_status = f"Both {parent_one} and {parent_two} Work"
     elif (spouse1_income is not None and spouse1_income > 0) or (spouse2_income is not None and spouse2_income > 0):
         work_status = "One Parent Works"
     else:
-        work_status = "No Parents Work"
+        work_status = f"Neither {parent_one} nor {parent_two} Work"
 
     logging.debug(f"{'Work Status:':<37} {work_status}")
     return work_status
@@ -764,9 +802,17 @@ def parse_config(args):
 
 def calculate_total_monthly_expenses(config_data):
     logging.debug("Entering <function ")
+    sell_house = config_data.get('house', {}).get('sell_house', 0)
+    if sell_house:
+        logging.info("sell_house property exists")
+        monthly_payment = config_data.get('new_house', {}).get('monthly_payment', 0)  # Use nested get with default 0
+    else:
+        logging.info("sell_house property does NOT exist or is false")
+        monthly_payment = config_data['house']['monthly_payment']
+    # monthly_payment = config_data['house']['monthly_payment']
 
     monthly_expenses_breakdown = {
-        "Mortgage": config_data['mortgage'],
+        "Mortgage": monthly_payment,
         "Yearly Property Tax": int(config_data['yearly_property_tax'] / 12),
         "Ski Team": int(sum(config_data.get("SKI_TEAM", {}).values()) / 12),
         "Baseball Team": int(sum(config_data.get("BASEBALL_TEAM", {}).values()) / 12),
@@ -897,16 +943,16 @@ def calculate_surplus(yearly_data, total_monthly_expenses):
     logging.info(f"{'Monthly Net Income':<42} {format_currency(yearly_income / 12)}")
     logging.info(f"{'Monthly Expenses':<42} {format_currency(total_monthly_expenses)}")
     monthly_surplus = int(yearly_income / 12) - int(total_monthly_expenses)
-    yearly_gain = calculate_yearly_surplus(monthly_surplus)
-    surplus_type = determine_surplus_type(yearly_gain)
+    calculated_yearly_gain = calculate_yearly_surplus(monthly_surplus)
+    surplus_type = determine_surplus_type(calculated_yearly_gain)
 
-    return yearly_gain, surplus_type, monthly_surplus
+    return calculated_yearly_gain, surplus_type, monthly_surplus
 
 def calculate_income_expenses(config_data, tax_rate):
     logging.debug("Entering <function ")
     yearly_data, total_monthly_expenses, monthly_expenses_breakdown = calculate_financial_data(config_data, tax_rate)
     expenses_not_factored_in_report = calculate_expenses_not_factored_in_report(config_data)
-    yearly_gain, surplus_type, monthly_surplus = calculate_surplus(yearly_data, total_monthly_expenses)
+    calculated_yearly_gain, surplus_type, monthly_surplus = calculate_surplus(yearly_data, total_monthly_expenses)
 
     # Calculate expenses
     total_school_expense, total_highschool_expense, total_college_expense = calculate_total_school_expense(config_data)
@@ -918,7 +964,7 @@ def calculate_income_expenses(config_data, tax_rate):
         "yearly_data": yearly_data,
         "total_monthly_expenses": total_monthly_expenses,
         "monthly_expenses_breakdown": monthly_expenses_breakdown,
-        "yearly_gain": yearly_gain,
+        "calculated_yearly_gain": calculated_yearly_gain,
         "surplus_type": surplus_type,
         "monthly_surplus": monthly_surplus,
         "total_school_expense": total_school_expense,
@@ -930,12 +976,12 @@ def calculate_income_expenses(config_data, tax_rate):
 
     return calculated_data
 
-def calculate_investment_values(config_data, yearly_gain):
+def calculate_investment_values(config_data, calculated_yearly_gain):
     logging.debug("Entering <function ")
-    logging.info(f"{'yearly_gain':<32} {format_currency(yearly_gain)}")
+    logging.info(f"{'calculated_yearly_gain':<32} {format_currency(calculated_yearly_gain)}")
     logging.info(f"{'yearly_gain':<32} {config_data.get('yearly_gain',0)}")
 
-    yearly_gain=yearly_gain + config_data.get('yearly_gain',0)
+    calculated_yearly_gain=calculated_yearly_gain + config_data.get('yearly_gain',0)
 
     logging.info("Employee Stock Plan")
     total_employee_stockplan = calculate_future_value(
@@ -952,7 +998,7 @@ def calculate_investment_values(config_data, yearly_gain):
         config_data.get('investment_balance', 0),
         config_data.get('interest_rate', 0),
         config_data.get('years', 0),
-        yearly_gain=yearly_gain,
+        calculated_yearly_gain=calculated_yearly_gain,
         gains=config_data.get('gains', 0),
         expenses=school_expenses,
         yearly_expense=config_data.get('yearly_expense', 0))
@@ -1035,7 +1081,7 @@ def calculate_future_net_worth_houseinfo(new_house, calculated_data, house_info)
 def calculate_financial_values(config_data, tax_rate):
     logging.debug("Entering <function")
     calculated_data = calculate_income_expenses(config_data, tax_rate)
-    investment_values = calculate_investment_values(config_data, calculated_data["yearly_gain"])
+    investment_values = calculate_investment_values(config_data, calculated_data["calculated_yearly_gain"])
 
     # Combine calculated_data and investment_values into one dictionary
     calculated_data = calculated_data.copy()  # Create a copy of calculated_data
@@ -1120,8 +1166,8 @@ def calculate_school_expense_coverage(calculated_data):
     """
     logging.debug("Entering <function ")
 
-    yearly_gain = calculated_data.get("yearly_gain", 0)
-    yearly_surplus = max(yearly_gain, 0)
+    calculated_yearly_gain = calculated_data.get("calculated_yearly_gain", 0)
+    yearly_surplus = max(calculated_yearly_gain, 0)
     school_expenses = calculated_data.get("school_expenses", [])
 
     school_expense_coverage = can_cover_school_expenses_per_year([yearly_surplus] * len(school_expenses), school_expenses)
@@ -1146,7 +1192,7 @@ def calculate_expenses_and_net_worth(config_data, calculated_data, house_info):
     # Calculate the coverage of school expenses for each year
     calculated_data["school_expense_coverage"] = calculate_school_expense_coverage(calculated_data)
     
-    calculated_data["LIVING_EXPENSES"] = calculate_living_expenses(config_data, calculated_data)
+    calculated_data["yearly_income_report"] = calculate_yearly_income_report(config_data, calculated_data)
     calculated_data["scenario_info"] = calculate_scenario_info(config_data, calculated_data)
     calculated_data["avg_yearly_fee"] = calculate_avg_yearly_school_fee(config_data, calculated_data)
     calculated_data["yearly_net_minus_school"] = calculate_yearly_net_minus_school(config_data, calculated_data)
@@ -1180,15 +1226,14 @@ def calculate_scenario_info(config_data, calculated_data):
     years = config_data["years"]
     scenario_info = {
         "Live in": config_data["residence_location"],
-        "Work Status": get_work_status(config_data["spouse1_yearly_income_base"],
-                                        config_data["spouse2_yearly_income_base"]),
+        "Work Status": get_work_status(config_data),
         "High School": config_data["highschool"],
         "Home Tenure": config_data["home_tenure"],
     }
     log_data(scenario_info, title="Scenario Summary")
     return scenario_info
 
-def calculate_living_expenses(config_data, calculated_data):
+def calculate_yearly_income_report(config_data, calculated_data):
     """
     Calculate living expenses and location data.
 
@@ -1197,20 +1242,28 @@ def calculate_living_expenses(config_data, calculated_data):
         calculated_data (object): Object containing calculated data for the financial scenario.
 
     Returns:
-        living_expenses_data (dict): Dictionary containing living expenses and location data.
+        yearly_income_report_data (dict): Dictionary containing living expenses and location data.
     """
     logging.debug("Entering <function ")
 
     years = config_data["years"]
+    spouse1_yearly_income_combined = calculated_data["yearly_data"].get("Spouse 1 Yearly Income Combined", "Not found")
+    spouse2_yearly_income_combined = calculated_data["yearly_data"].get("Spouse 2 Yearly Income Combined", "Not found")
+    parent_one = config_data["parent_one"]
+    parent_two = config_data["parent_two"]
     # Calculate living expenses data
-    living_expenses_data = {
-        "Yearly Income Surplus": calculated_data["yearly_gain"],
+    yearly_income_report_data = {
+        "Yearly Income Surplus": calculated_data.get("calculated_yearly_gain", 0),  # Default to 0 if missing
+        f"Yearly Income {parent_one}": spouse1_yearly_income_combined,
+        f"Yearly Income {parent_two}": spouse2_yearly_income_combined,
+        "Yearly Gains From Other": config_data.get("yearly_gain", 0),
+        "Yearly Expenses From Other": config_data.get("yearly_expense", 0),
     }
-    log_data(living_expenses_data, title="Living Expenses")
-    return living_expenses_data
+    log_data(yearly_income_report_data, title="Yearly Income")
+    return yearly_income_report_data
 
 
-def retrieve_assumptions(config_data):
+def retrieve_assumptions(config_data, tax_rate):
     """
     Retrieve assumption data used in calculations
 
@@ -1219,14 +1272,16 @@ def retrieve_assumptions(config_data):
         calculated_data (object): Object containing calculated data for the financial scenario.
 
     Returns:
-        living_expenses_data (dict): Dictionary containing living expenses and location data.
+        data (dict): Dictionary containing living expenses and location data.
     """
     logging.debug("Entering <function ")
 
     data = {
-        "Assumed tax rate": config_data["assumed_tax_rate"],
+        "Assumed tax rate": tax_rate,
         "federal tax rate dual": config_data["federal_tax_rate_dual"],
         "State tax rate dual": config_data["state_tax_rate_dual"],
+        "federal tax rate single": config_data["federal_tax_rate_single"],
+        "State tax rate dual": config_data["state_tax_rate_single"],
         "Interest rate": config_data["interest_rate"],
         "house_annual_growth_rate": config_data.get("house", {}).get("annual_growth_rate")
     }
@@ -1247,7 +1302,7 @@ def calculate_school_expenses_old(config_data, calculated_data):
 
     years = config_data["years"]
     avg_yearly_fee = calculated_data["total_school_expense"] / years
-    yearly_net_minus_school = calculated_data["yearly_gain"] - (calculated_data["total_school_expense"] / years)
+    yearly_net_minus_school = calculated_data["calculated_yearly_gain"] - (calculated_data["total_school_expense"] / years)
 
     logging.info(f"{'Average Yearly School Fee:':<34} {format_currency(avg_yearly_fee)}")
     logging.info(f"{'Yearly Net (Minus School):':<34} {format_currency(yearly_net_minus_school)}")
@@ -1294,7 +1349,7 @@ def calculate_yearly_net_minus_school(config_data, calculated_data):
     logging.debug("Entering calculate_yearly_net_minus_school function")
 
     avg_yearly_fee = calculate_avg_yearly_school_fee(config_data, calculated_data)  # Reuse the first function
-    yearly_net_minus_school = calculated_data["yearly_gain"] - avg_yearly_fee
+    yearly_net_minus_school = calculated_data["calculated_yearly_gain"] - avg_yearly_fee
 
     # Log the yearly net minus school expenses
     logging.info(f"{'Yearly Net (Minus School):':<34} {format_currency(yearly_net_minus_school)}")
@@ -1406,33 +1461,6 @@ def adjust_config(config_data, years_override, include_ski_team, ski_team_data, 
         logging.info(f"{'High school expenses:':<45}  {'Using global scenario'}")
 
 
-def prepare_scenarios_data(scenarios_data):
-    logging.debug("Entering <function ")
-
-    prepared_data = {
-        "config_data": scenarios_data.get("config_data", {}),
-        "selected_scenarios": scenarios_data.get("selected_scenarios", []),
-        "years_override": scenarios_data.get("years_override"),
-        "include_ski_team": scenarios_data.get("include_ski_team", "include"),
-        "ski_team_data": scenarios_data.get("SKI_TEAM", {}),
-        "include_baseball_team": scenarios_data.get("include_baseball_team", "include"),
-        "baseball_team_data": scenarios_data.get("BASEBALL_TEAM", {}),
-        "include_highschool_expenses": scenarios_data.get("include_highschool_expenses", "include"),
-        "highschool_expenses_data": scenarios_data.get("highschool_expenses", {})
-    }
-    if 'selected_scenarios' in prepared_data:
-      logging.info(f"Selected Scenarios:\n\n{''.join([f'{scenario:<24}\n' for scenario in prepared_data['selected_scenarios']])}")
-    else:
-      logging.warn(f"Selected Scenarios key not found in prepared_data")
-    
-    if 'years_override' in prepared_data:
-      logging.info(f"{'Years Override:':<37} {prepared_data['years_override']}")
-    else:
-      logging.info(f"Years Override: Not specified") 
-    
-    return prepared_data
-
-
 def generate_report(config_data, scenario_name):
     logging.debug(f"Scenario: {scenario_name}")
 
@@ -1444,6 +1472,9 @@ def generate_report(config_data, scenario_name):
     calculated_data = calculate_financial_values(config_data, tax_rate)
     current_house, new_house, house_info = calculate_house_info(config_data)
     calculate_expenses_and_net_worth(config_data, calculated_data, house_info)
+    invest_capital_from_house_sale = house_info.get("invest_capital", 0)
+    sale_of_house_investment = calculate_future_value(invest_capital_from_house_sale, 0, 0, config_data["interest_rate"], config_data["years"])
+    Investment_projected_growth = calculate_future_value(config_data.get('investment_balance', 0),0, 0, config_data["interest_rate"], config_data["years"])
 
     report_data = {
         "config_data": config_data,
@@ -1454,29 +1485,40 @@ def generate_report(config_data, scenario_name):
     }
 
     future_value_html = report_html_generator.generate_future_value_html_table(report_data)
-    current_value_html = report_html_generator.generate_current_networth_html_table(report_data)
+    current_value_html = report_html_generator.generate_current_networth_html_table(report_data, invest_capital_from_house_sale, sale_of_house_investment, Investment_projected_growth)
     scenario_summary_html = report_html_generator.generate_section_html(
         "Scenario",
         calculated_data.get("scenario_info", {})
     )
     yearly_net_html = report_html_generator.generate_section_html(
         "Cash Flow Before School Fees",
-        calculated_data.get("LIVING_EXPENSES", {}),
+        calculated_data.get("yearly_income_report", {}),
         custom_formatter=format_currency
     )
-    avg_yearly_fee_html = report_html_generator.generate_section_html(
-        "Projected Average Yearly School Costs",
-        calculated_data.get("avg_yearly_fee", {}),
-        custom_formatter=format_currency
-    )
-    cashflow_after_school_fee_html = report_html_generator.generate_section_html(
+    # Retrieve the values
+    yearly_net_minus_school = calculated_data.get("yearly_net_minus_school", 0)
+    avg_yearly_fee = calculated_data.get("avg_yearly_fee", 0)
+
+    # Ensure both values are numeric
+    yearly_net_minus_school = float(yearly_net_minus_school) if isinstance(yearly_net_minus_school, (int, float)) else 0
+    avg_yearly_fee = float(avg_yearly_fee) if isinstance(avg_yearly_fee, (int, float)) else 0
+
+    cashflow_After_school_data = {
+        "Average Yearly School Fees": avg_yearly_fee,
+        "Cash Flow After School Fees": yearly_net_minus_school,  
+
+    }
+
+    # Now you can use total_after_fees as needed
+    total_after_fees_html = report_html_generator.generate_section_html(
         "Cash Flow After School Fees",
-        calculated_data.get("yearly_net_minus_school", {}),
+        cashflow_After_school_data,
         custom_formatter=format_currency
     )
+
     assumptions_html = report_html_generator.generate_section_html(
         section_title="Assumptions",
-        data=retrieve_assumptions(config_data),
+        data=retrieve_assumptions(config_data, tax_rate),
         custom_formatter=None,
         collapsible=True
     )
@@ -1504,7 +1546,7 @@ def generate_report(config_data, scenario_name):
     summary_data = {
         "assumption_description": config_data.get("assumption_description", ""),
         "description_detail": config_data.get("description_detail", ""),
-        "yearly_gain": calculated_data.get("yearly_gain", ""),
+        "calculated_yearly_gain": calculated_data.get("calculated_yearly_gain", ""),
         "future_value": future_value_html,
         "current_value": current_value_html,
         "scenario_summary_info": scenario_summary_html,
@@ -1512,8 +1554,7 @@ def generate_report(config_data, scenario_name):
         "assumptions_html": assumptions_html,
         "monthly_expenses_html": monthly_expenses_html,
         "expenses_not_factored_html": expenses_not_factored_html,
-        "avg_yearly_fee_html": avg_yearly_fee_html,
-        "cashflow_after_school_fee_html": cashflow_after_school_fee_html,
+        "total_after_fees_html": total_after_fees_html,
         "school_expenses_table_html": school_expenses_table_html,
         "investment_table_html": investment_table_html,
         "retirement_table_html": retirement_table_html,
@@ -1522,7 +1563,7 @@ def generate_report(config_data, scenario_name):
     }
 
     scenario_html = report_html_generator.generate_html(report_data)
-    report_filename = f"{Path(__file__).parent.parent}/reports/financial_report_{scenario_name}.html"
+    report_filename = f"{Path(__file__).parent.parent}/reports/detail_{scenario_name}.html"
     with open(report_filename, 'w') as file:
         file.write(scenario_html)
         logging.info(f"Report: {report_filename}")
@@ -1537,33 +1578,34 @@ def create_reports_directory():
     logging.info(f"{'Created:':<35} {reports_dir}")
     return reports_dir
 
-def process_scenario(scenario_name, base_config, reports_dir, scenarios_dir="scenarios"):
-    logging.debug("Entering <function")
+def process_scenario(scenario_name, scenarios_data, reports_dir, scenarios_dir="scenarios"):
+    logging.debug("Entering process_scenario")
     logging.info(f"{'Scenario:':<43} {scenario_name}")
 
     scenario_file = Path(__file__).parent.parent / scenarios_dir / f"{scenario_name}.json"
     logging.debug(f"Scenario file: {scenario_file}")
-    config_data = load_config(scenario_file)
+
+    # Load scenario-specific data
+    scenario_specific_data = load_config(scenario_file)
+
+    # Merge scenario-specific data with scenarios_data (and general_config by extension)
+    config_data = {**scenarios_data, **scenario_specific_data}  # Merge dictionaries, with scenario-specific overwriting scenarios_data
+
     # Log essential config data
     logging.info(f"{'config_data:':<43} {'json'}")
-    logging.info(f"{'years:':<43} {config_data['years']}")
-    logging.info(f"{'residence_location:':<43} {config_data['residence_location']}")
-    logging.info(f"{'home_tenure:':<43} {config_data['home_tenure']}")
-    logging.info(f"{'sell_house:':<43} {config_data['sell_house']}")
+    logging.info(f"{'years:':<43} {config_data.get('years', 'Not specified')}")
+    logging.info(f"{'residence_location:':<43} {config_data.get('residence_location', 'Not specified')}")
+    logging.info(f"{'home_tenure:':<43} {config_data.get('home_tenure', 'Not specified')}")
 
-    adjust_config(
-        config_data,
-        base_config["years_override"],
-        base_config["include_ski_team"], base_config["ski_team_data"],
-        base_config["include_baseball_team"], base_config["baseball_team_data"],
-        base_config["include_highschool_expenses"], base_config["highschool_expenses_data"]
-    )
+    # Safely get team data and log
     logging.debug("Local Scenario Objects")
-    log_data(config_data['BASEBALL_TEAM'], "Baseball Team")
-    log_data(config_data['SKI_TEAM'], "Ski Team")
-    log_data(config_data['highschool_expenses'], "High School Expenses")
-  
+    log_data(config_data.get('BASEBALL_TEAM', {}), "Baseball Team")
+    log_data(config_data.get('SKI_TEAM', {}), "Ski Team")
+    log_data(config_data.get('highschool_expenses', {}), "High School Expenses")
+
     summary_data = generate_report(config_data, scenario_name)
     logging.info("-" * 70)  # Use a line of dashes or other separator
 
     return summary_data
+
+

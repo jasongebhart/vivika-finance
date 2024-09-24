@@ -63,7 +63,7 @@ def generate_current_house_html(current_house):
     <button id='current-house-button' class='collapsible' onclick='toggleCollapsible("current-house-button", "current-house-content")'>
         Current House
     </button>
-    <div id='current-house-content' class='content' style='max-height: 0; overflow: hidden; transition: max-height 0.2s ease-out;'>
+    <div id='current-house-content' class='content'>
         <div class='table-container'>
             <table>
                 <tr><th>Attribute</th><th>Value</th></tr>
@@ -116,7 +116,7 @@ def generate_new_house_html(new_house):
     if not new_house:
         # Return a message or an empty table if no data is provided
         logging.info("new house info NOT found")
-        return "<p>No new_house data available.</p>"
+        return "<div class='collapsible'><p>New house not part of scenario.</p></div>"
     logging.info("new house info found")
 
     # Define fields that should be treated as plain numbers
@@ -191,7 +191,7 @@ def generate_future_value_html_table(report_data):
     """
     return html_content
 
-def generate_current_networth_html_table(report_data):
+def generate_current_networth_html_table(report_data, invest_capital_from_house_sale, sale_of_house_investment, Investment_projected_growth):
     """
     Generate HTML content for the current net worth section of the financial report.
 
@@ -211,25 +211,55 @@ def generate_current_networth_html_table(report_data):
         <tr>
         <th>House Net Worth</th>
         <td>
-            <div class="house-net-worth-field">
-            <span class="house-net-worth">{format_currency(house_info.get("house_net_worth", 0))}</span>
-            <span class="tooltip">
-                <span class="tooltip-text">
-                Calculated by (House Value - Remaining Mortgage Principal)
+            <div class="net-worth-field">
+                <span class="net-worth">{format_currency(house_info.get("house_net_worth", 0))}</span>
+                <span class="tooltip">
+                    <span class="tooltip-icon" aria-label="Tooltip available" role="tooltip">ℹ️</span>
+                    <span class="tooltip-text">
+                        Calculated by (House Value - Remaining Mortgage Principal)
+                    </span>
                 </span>
-            </span>
             </div>
         </td>
         </tr>
-        <tr><th>Investment Balance</th><td>{format_currency(config_data.get('investment_balance', 0))}</td></tr>
-        <tr><th>Retirement Balance</th><td>{format_currency(config_data.get('retirement_principal', 0))}</td>
+
+        <tr>
+        <th>House Re-Investment</th>
+        <td>
+            <div class="net-worth-field">
+                <span class="net-worth">{format_currency(invest_capital_from_house_sale)}</span>
+                <span class="tooltip">
+                    <span class="tooltip-icon" aria-label="Tooltip available" role="tooltip">ℹ️</span>
+                    <span class="tooltip-text">
+                        This is the capital that will be reinvested after the house is sold.
+                        <br>Projected Future Value: {format_currency(sale_of_house_investment)}
+                    </span>
+                </span>
+            </div>
+        </td>
         </tr>
+
+        <tr><th>Investment Balance</th>
+        <td>
+            <div class="net-worth-field"> 
+                <span class="net-worth">{format_currency(config_data.get('investment_balance', 0))}</span>
+                <span class="tooltip">
+                    <span class="tooltip-icon" aria-label="Tooltip available" role="tooltip">ℹ️</span>
+                    <span class="tooltip-text">
+                        Projected value if not used to cover expenses.
+                        <br>Projected Future Value: {format_currency(Investment_projected_growth)}
+                    </span>
+                </span>
+            </div>
+            </td></tr>
+        <tr><th>Retirement Balance</th><td>{format_currency(config_data.get('retirement_principal', 0))}</td></tr>
         <tr><th>Combined Net worth</th><td>{format_currency(calculated_data.get("combined_networth", 0))}</td></tr>
     </table>
     </div>
     """
-
     return html_content
+
+
 
 def generate_income_expenses_html(section_title, calculated_data):
     """
@@ -246,7 +276,7 @@ def generate_income_expenses_html(section_title, calculated_data):
     <button id='income-expenses-button' type='button' class='collapsible' onclick='toggleCollapsible("income-expenses-button", "income-expenses-content")'>
         {section_title}
     </button>
-    <div id='income-expenses-content' class='content' style='max-height: 0; overflow: hidden; transition: max-height 0.2s ease-out;'>
+    <div id='income-expenses-content' class='content'>
         <div class='table-container'>
             <table class='income-expenses-table'>
                 <thead>
@@ -486,7 +516,7 @@ def generate_section_html(section_title, data, custom_formatter=None, headers=No
     if collapsible:
         html_content += f"""
             <button id="{button_id}" class="collapsible" onclick="toggleCollapsible('{button_id}', '{content_id}')">{section_title}</button>
-            <div id="{content_id}" class="content" style="max-height: 0; overflow: hidden; transition: max-height 0.2s ease-out;">
+            <div id="{content_id}" class="content">
         """
     else:
         # Standard section title without collapsibility
@@ -539,7 +569,7 @@ def generate_house_section_html(section_title, data, custom_formatter=None, head
     if collapsible:
         html_content += f"""
             <button id="{button_id}" class="collapsible" onclick="toggleCollapsible('{button_id}', '{content_id}')">{section_title}</button>
-            <div id="{content_id}" class="content" style="max-height: 0; overflow: hidden; transition: max-height 0.2s ease-out;">
+            <div id="{content_id}" class="content">
         """
     else:
         # Standard section title without collapsibility
@@ -563,7 +593,7 @@ def generate_house_section_html(section_title, data, custom_formatter=None, head
     return html_content
 
 def generate_html(report_data):
-    excluded_sections = ["current_house", "school_expense_coverage", "LIVING_EXPENSES", "house_info"]
+    excluded_sections = ["current_house", "school_expense_coverage", "Yearly Income", "house_info"]
 
     def format_data(data):
         formatted_data = ""
@@ -607,10 +637,10 @@ def generate_html(report_data):
     html_content += f"<button type='button' class='collapsible' onclick='toggleCollapsible(\"future-value\", \"future-value-content\")'>{escape(formatted_future_title)}</button>"
     html_content += f"<div id='future-value-content' class='content'>{future_value_html}</div>"
 
-    yearly_income_surplus_html = generate_section_html("Yearly Income Surplus", report_data["calculated_data"]["LIVING_EXPENSES"], format_currency)
+    yearly_income_surplus_html = generate_section_html("Yearly Income Surplus", report_data["calculated_data"]["calculated_yearly_gain"], format_currency)
     yearly_income_surplus_title = format_key("Yearly Income Surplus")
-    html_content += f"<button type='button' class='collapsible' onclick='toggleCollapsible(\"living-expenses\", \"living-expenses-content\")'>{escape(yearly_income_surplus_title)}</button>"
-    html_content += f"<div id='living-expenses-content' class='content'>{yearly_income_surplus_html}</div>"
+    html_content += f"<button type='button' class='collapsible' onclick='toggleCollapsible(\"yearly_income_surplus\", \"yearly_income_surplus-content\")'>{escape(yearly_income_surplus_title)}</button>"
+    html_content += f"<div id='yearly_income_surplus-content' class='content'>{yearly_income_surplus_html}</div>"
 
     html_content += generate_configuration_data_html("Configuration Data", report_data['config_data'])
     html_content += generate_income_expenses_html("Income and Expenses", report_data['calculated_data'])
@@ -679,50 +709,43 @@ def generate_summary_report_html(summary_report_data):
         assumption_description = scenario_data.get("assumption_description", "")
         description_detail = scenario_data.get("description_detail", "")
         html_content += f"""
-            <div class='header'>
-                <h2 id='{scenario_id}-title'>{escape(assumption_description)}</h2>
-                <div id='{scenario_id}-content' class='section-content'>
-                    <div class='table-container'>
-                        <div>
-                            {scenario_data["scenario_summary_info"]}
-                            <p>{escape(description_detail)}</p>
-                        </div>
-                        <div>
-                            <h3>Current Value</h3>
-                            {scenario_data["current_value"]}
-                        </div>
-                         <div>
-                            <h3>Future Value</h3>
-                            {scenario_data["future_value"]}
-                        </div>
-                        <div>
-                            {scenario_data["yearly_net_html"]}
-                            {scenario_data["avg_yearly_fee_html"]}
-                            {scenario_data["cashflow_after_school_fee_html"]}
-                        </div>
-                        <div>
-                            {scenario_data["assumptions_html"]}
-                        </div>
-                        <div>
-                            {scenario_data["monthly_expenses_html"]}
-                        </div>
-                         <div>
-                            {scenario_data["expenses_not_factored_html"]}
-                        </div>
-                        <div>
-                            {scenario_data["school_expenses_table_html"]}
-                        </div>
-                        <div>
-                            {scenario_data["investment_table_html"]}
-                        </div>
-                        <div>
-                            {scenario_data["retirement_table_html"]}
-                        </div>
-                        <div>
-                            {scenario_data["current_house_html"]}
-                        </div>
-                        <div>
-                            {scenario_data["new_house_html"]}
+            <div class="content-wrapper">
+                <!-- Left section (detailed info) -->
+                <div id='{scenario_id}-detail' class='detailed-info'>
+                    <h3>Detailed Information</h3>
+                    <div>{scenario_data["assumptions_html"]}</div>
+                    <div>{scenario_data["monthly_expenses_html"]}</div>
+                    <div>{scenario_data["expenses_not_factored_html"]}</div>
+                    <div>{scenario_data["school_expenses_table_html"]}</div>
+                    <div>{scenario_data["investment_table_html"]}</div>
+                    <div>{scenario_data["retirement_table_html"]}</div>
+                    <div>{scenario_data["current_house_html"]}</div>
+                    <div>{scenario_data["new_house_html"]}</div>
+                </div>
+
+                <!-- Right section (main content) -->
+                <div class='main-content'>
+                    <div class='header'>
+                        <h2 id='{scenario_id}-title'>{escape(assumption_description)}</h2>
+                        <div id='{scenario_id}-content' class='section-content'>
+                            <div class='table-container'>
+                                <div>
+                                    {scenario_data["scenario_summary_info"]}
+                                    <p>{escape(description_detail)}</p>
+                                </div>
+                                <div>
+                                    <h3>Current Value</h3>
+                                    {scenario_data["current_value"]}
+                                </div>
+                                <div>
+                                    <h3>Future Value</h3>
+                                    {scenario_data["future_value"]}
+                                </div>
+                                <div>
+                                    {scenario_data["yearly_net_html"]}
+                                    {scenario_data["total_after_fees_html"]}
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -774,7 +797,7 @@ def generate_table_for_child(child_data, table_class="expense-table", headers=["
             <button id="{child_id}-button" class="collapsible" onclick="toggleCollapsible('{child_id}-button', '{child_id}-content')">
                 {child_name} School
             </button>
-            <div id="{child_id}-content" class="content" style="max-height: 0; overflow: hidden; transition: max-height 0.2s ease-out;">
+            <div id="{child_id}-content" class="content">
                 <table class='{table_class}'>
                     <thead>
                         <tr><th>{escape(headers[0])}</th><th>{escape(headers[1])}</th><th>{escape(headers[2])}</th></tr>
@@ -829,7 +852,7 @@ def generate_investment_table(data, custom_formatter=None):
     html_content = ""
     html_content += f"""
         <button id="investment-button" class="collapsible" onclick="toggleCollapsible('investment-button', 'investment-content')">Investment Breakdown</button>
-        <div id="investment-content" class="content" style="max-height: 0; overflow: hidden; transition: max-height 0.2s ease-out;">
+        <div id="investment-content" class="content">
             <table>
     """
 
@@ -883,7 +906,7 @@ def generate_retirement_table(config_data, table_class="retirement-table"):
     formatted_grand_total_balance = "{:,.2f}".format(grand_total_balance)
     html_content += f"""
         <button id="grandTotal-button" class="collapsible" onclick="toggleCollapsible('grandTotal-button', 'grandTotal-content')">Total Retirement Balance</button>
-        <div id="grandTotal-content" class="content" style="max-height: 0; overflow: hidden; transition: max-height 0.2s ease-out;">
+        <div id="grandTotal-content" class="content">
             <table class='{table_class}'>
                 <tbody>
                     <tr>
@@ -903,7 +926,7 @@ def generate_retirement_table(config_data, table_class="retirement-table"):
         # Add collapsible section for each parent's details
         html_content += f"""
             <button id="{parent_id}-button" class="collapsible" onclick="toggleCollapsible('{parent_id}-button', '{parent_id}-content')">{escape(parent_name)} Retirement</button>
-            <div id="{parent_id}-content" class="content" style="max-height: 0; overflow: hidden; transition: max-height 0.2s ease-out;">
+            <div id="{parent_id}-content" class="content">
                 <h3>Contributions</h3>
                 <table class='{table_class}'>
                     <thead>
@@ -921,8 +944,9 @@ def generate_retirement_table(config_data, table_class="retirement-table"):
         for contribution_type, entries in contributions_data.items():
             for entry in entries:
                 for contribution, amount in entry.items():
+                    stripped_contribution = contribution.replace("spouse1_", "").replace("spouse2_", "").replace("retirement_", "").replace("contribution_", "").replace("_", " ").title()
                     formatted_amount = "{:,.2f}".format(amount)  # Format amount with commas
-                    html_content += f"<tr><td>{escape(contribution_type)}</td><td>{escape(contribution)}</td><td>{formatted_amount}</td></tr>\n"
+                    html_content += f"<tr><td>{escape(contribution_type)}</td><td>{escape(stripped_contribution)}</td><td>{formatted_amount}</td></tr>\n"
                     total_contributions += amount  # Add to total contributions
 
         # Display total contributions
@@ -931,11 +955,11 @@ def generate_retirement_table(config_data, table_class="retirement-table"):
         html_content += "</tbody>\n</table>\n"  # End of contributions table
 
         # Generate table for accounts
-        html_content += """
+        html_content += f"""
                 <h3>Accounts</h3>
                 <table class='{table_class}'>
                     <thead>
-                        <tr><th>Account Type</th><th>Account Name</th><th>Balance</th></tr>
+                        <tr><th>Type</th><th>Account Name</th><th>Balance</th></tr>
                     </thead>
                     <tbody>
         """
