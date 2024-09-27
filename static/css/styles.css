@@ -15,6 +15,10 @@ body {
     color: #333; /* Default text color */
 }
 
+.container {
+    display: flex; /* Use flexbox layout */
+}
+
 /* Styles for headings */
 h1, h2 {
     color: var(--primary-color); /* Set primary color for headings */
@@ -55,33 +59,28 @@ h2 {
 }
 
 .content-wrapper {
-    display: flex;
-    justify-content: space-between;  /* Align left and right sections */
-    align-items: flex-start;         /* Align both sections at the top */
-    flex-wrap: nowrap;               /* Ensure no wrapping */
-    gap: 10px;                       /* Add space between columns */
+    display: flex;                        /* Use flexbox for layout */
+    justify-content: space-between;       /* Space between sections */
+    align-items: flex-start;              /* Align items at the top */
+    gap: 20px;                           /* Space between the sections */
 }
 
 /* Main content on the right */
 .main-content {
-    flex: 3;  /* Occupies 75% of the available space */
-    margin-left: 5px;  /* Adds spacing from the detailed-info section */
-    background-color: #fff;  /* Optional: add background color */
-    padding: 15px;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    flex: 1;                         /* Allow the main content to grow */
+    background-color: #fff;               /* White background */
+    padding: 10px;                        /* Inner padding */
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1); /* Shadow for depth */
 }
 
+/* Detailed information section */
 .detailed-info {
-    flex: 1;  /* Occupies 25% of the available space */
-    margin-right: 10px;  /* Adds spacing from the right content */
-    background-color: #f9f9f9;
-    padding: 15px;
-    z-index: 1000;
-    border-radius: 5px;
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
-    max-width: 335px;  /* You can adjust this as needed */
+    flex: 0 0 335px;                      /* Fixed width for detailed info */
+    background-color: #f9f9f9;            /* Light background */
+    padding: 15px;                        /* Inner padding */
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1); /* Shadow for depth */
+    margin-left: 10px;                    /* Space between detailed info and main content */
 }
-
 .detailed-info th, td {
     border: 1px solid #ddd; /* Set border */
     padding: 8px; /* Add padding */
@@ -160,10 +159,24 @@ th {
     padding: 10px;
     width: auto;
     border: none;
+    border-radius: 5px;
     text-align: left;
     outline: none;
     font-size: 13px;
     margin-bottom: 5px;
+}
+.collapsible.active {
+    background-color: #b3cce7;
+}
+
+.collapsible:focus {
+    outline: none;
+}
+
+.collapsible-content {
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.3s ease-out;
 }
 
 .active, .collapsible:hover {
@@ -223,29 +236,6 @@ th {
 }
 
 
-/* Style for navigation links */
-nav a {
-    text-decoration: none; /* Remove underline */
-    color: #007BFF; /* Link color (blue in this case) */
-    font-weight: bold; /* Bold text for emphasis */
-    padding: 2px 4px; /* Add some padding */
-    background-color: #f0f0f0; /* Light background color for contrast */
-    border-radius: 5px; /* Rounded corners */
-    transition: background-color 0.3s ease; /* Smooth transition for hover effect */
-}
-
-/* Hover effect for navigation links */
-nav a:hover {
-    background-color: #007BFF; /* Change background color on hover */
-    color: white; /* Change text color on hover */
-}
-
-/* Optional: Centering navigation links if needed */
-nav {
-    text-align: center;
-    margin: 20px 0;
-}
-
 
 /* Add responsive behavior for smaller screens */
 @media (max-width: 800px) {
@@ -269,52 +259,151 @@ nav {
     }
 }
 
-/* CSS for positioning aside as a sidebar */
-.index-navigation {
-    position: fixed;       /* Fix the aside so it stays in place while scrolling */
-    top: 57px;            /* Adjust the top margin to avoid overlapping with the header */
-    right: 20px;           /* Position it on the right side of the screen */
-    width: 285px;          /* Adjust the width of the sidebar */
-    background-color: #f9f9f9;  /* Light background for better readability */
-    padding: 15px;         /* Add some padding inside the aside */
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);  /* Add a slight shadow for a floating effect */
+.fixed-sidebar {
+    position: fixed; /* Fixed sidebar */
+    top: 57px; /* Offset from top */
+    left: 20px; /* Position on the left */
+    height: calc(100% - 57px); /* Full height minus the header */
+    overflow-y: auto; /* Allow scrolling */
+    width: 200px; /* Set width for sidebar */
 }
 
-.index-navigation h2 {
+/* CSS for positioning aside as a sidebar */
+.site-navigation {
+    display: flex;
+    flex-direction: column; /* Keeps the buttons and lists in a column by default */
+    width: 265px; /* Set a fixed width for the navigation */
+    background-color: #f4f4f4; /* Light background for visibility */
+    padding: 15px; /* Add some padding */
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1); /* Shadow for depth */
+    border-radius: 8px;
+    margin-right: 10px;                    
+}
+
+.nav-buttons {
+    display: flex;
+    justify-content: flex-start; /* Aligns buttons to the left (use 'center' or 'space-between' if needed) */
+    gap: 10px; /* Adds some space between the buttons */
+    flex-wrap: wrap; /* Ensures buttons wrap to the next line if there's not enough space */
+}
+
+
+.site-navigation h2 {
     font-size: 1.2em;
     margin-bottom: 10px;
 }
 
-.index-navigation ul {
+.site-navigation ul {
     list-style-type: none;
     padding: 0;
 }
 
-.index-navigation ul li {
+.site-navigation ul li {
     margin: 8px 0;
 }
 
-.index-navigation ul li a {
+.site-navigation ul li a {
     text-decoration: none;
-    color: #007bff;        /* Link color */
+    color: #007bff;              /* Link color */
     font-weight: bold;
-    transition: background-color 0.3s ease, color 0.3s ease;  /* Smooth transition effect */
+    transition: background-color 0.3s ease, color 0.3s ease; /* Smooth transition effect */
 }
 
-.index-navigation ul li a:hover {
-    text-decoration: none;          /* Remove underline on hover */
-    background-color: #007bff;      /* Background color on hover */
-    color: #ffffff;                 /* Text color changes to white on hover for contrast */
-    padding: 4px;                   /* Add some padding to the links for a clickable area */
-    border-radius: 4px;             /* Optional: rounded corners for a softer look */
+.site-navigation ul li a:hover {
+    text-decoration: none;         /* Remove underline on hover */
+    background-color: #007bff;     /* Background color on hover */
+    color: #ffffff;                /* Text color changes to white on hover for contrast */
+    padding: 6px;                  /* Add some padding to the links for a clickable area */
+    margin: 5px;
+    border-radius: 4px;            /* Optional: rounded corners for a softer look */
 }
+
 /* Style for the active report link */
-.index-navigation a.active {
+.site-navigation a.active {
     font-weight: bold;
     background-color: #f0f0f0;
     padding: 5px;
     border-radius: 5px;
     color: #333;
+}
+
+
+.viability-list {
+    list-style-type: none; /* Remove default list styling */
+    padding-left: 0; /* Reset padding */
+}
+
+.location-item {
+    margin: 10px 0; /* Space between locations */
+    font-size: 1.2em;
+}
+
+.location-title {
+    font-weight: bold;
+    font-size: 1.2em;
+    margin-bottom: 5px;
+    display: block;
+    color: #333;
+}
+
+.work-status-list {
+    list-style-type: circle; /* Change bullet style */
+    margin-left: auto; /* Indent work status lists */
+}
+
+.work-status-title {
+    font-weight: bold;
+    color: #666;
+}
+
+.work-status-item {
+    margin: 5px 0; /* Space between work statuses */
+    font-size: small;
+}
+
+.report-list {
+    list-style-type: square; /* Change bullet style */
+    margin-left: 20px; /* Indent report lists */
+}
+
+.report-item {
+    margin: 3px 0; /* Space between report links */
+}
+
+.report-item a {
+    text-decoration: none; /* Remove underline from links */
+    color: #007bff; /* Link color */
+}
+
+.report-item a:hover {
+    text-decoration: underline; /* Underline on hover */
+}
+.scenario-section {
+    border: 1px solid #ddd; /* Optional border for clarity */
+    padding: 15px; /* Padding for scenario section */
+    margin-bottom: 20px; /* Space between scenarios */
+    background-color: #fff; /* White background for scenarios */
+    border-radius: 5px; /* Rounded corners */
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1); /* Subtle shadow for depth */
+}
+
+.scenario-status {
+    display: inline-block;          /* Makes the element fit the text size */
+    font-size: 1.2em;              
+    font-weight: bold;             
+    margin: 5px 0;                 /* Reduced margin for less space */
+    padding: 5px 8px;              /* Adjust padding to fit text better */
+    border-radius: 5px;            /* Keep rounded corners */
+}
+
+.viable {
+    background-color: #4CAF50;    /* Light green background */
+    color: #f0f0f0;                /* Dark green text */
+}
+
+.not-viable {
+    background-color: #f8d7da;    /* Light red background */
+    color: #721c24;                /* Dark red text */
 }
 
 /* Print-specific styles */

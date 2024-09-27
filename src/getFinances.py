@@ -3,6 +3,7 @@ import investment_module
 import report_html_generator
 from pathlib import Path
 import logging
+import json  # Import JSON module
 
 def main():
     log_dir = investment_module.create_log_directory()
@@ -21,24 +22,15 @@ def main():
 
     # Load the configuration data and general configuration data
     scenarios_data, general_config = investment_module.parse_and_load_config()
-    # logging.info(f"Scenarios Data: {scenarios_data}")
-    # logging.info(f"General Config: {general_config}")
-
 
     # Check if the input is a sequence or a direct scenario
     if not "sequence" in input_file.stem:
-        # If it's a direct scenario, add default values and merge with general_config
         scenarios_data["selected_scenarios"] = [input_file.stem]
 
-        # Merge missing values from general_config into scenarios_data
         for key, value in general_config.items():
             if key not in scenarios_data:
                 scenarios_data[key] = value
                 logging.debug(f"Adding '{key}' from general_config to scenarios_data with value: {value}")
-            else:
-                logging.debug(f"Key '{key}' already exists in scenarios_data with value: {scenarios_data[key]}")
-
-    # No need to call `prepare_scenarios_data` anymore since we've handled the data merging above
 
     reports_dir = investment_module.create_reports_directory()
     report_name_prefix = "scenario_"
@@ -62,6 +54,7 @@ def main():
         logging.error("No valid scenario data to generate the report.")
         return
 
+
     if "sequence" in input_file.stem and "report_name" in scenarios_data:
         report_name = scenarios_data["report_name"]
     else:
@@ -75,6 +68,7 @@ def main():
 
 
     print(f"Summary report generated successfully. See: {summary_report_filename}")
+
 
 if __name__ == "__main__":
     main()

@@ -926,7 +926,6 @@ def calculate_expenses_not_factored_in_report(config_data):
     expenses_not_factored_in_report = {
         "Total Widji": config_data.get('total_widji'),
         "Total Ski Camp": config_data.get('Total_ski_camp'),
-        "Car Purchase": config_data.get('car_purchase'),
     }
     monthly_expenses = {f"Monthly {key}": int(value / 12) for key, value in expenses_not_factored_in_report.items()}
     expenses_not_factored_in_report.update(monthly_expenses)
@@ -1474,7 +1473,9 @@ def generate_report(config_data, scenario_name):
     calculate_expenses_and_net_worth(config_data, calculated_data, house_info)
     invest_capital_from_house_sale = house_info.get("invest_capital", 0)
     sale_of_house_investment = calculate_future_value(invest_capital_from_house_sale, 0, 0, config_data["interest_rate"], config_data["years"])
-    Investment_projected_growth = calculate_future_value(config_data.get('investment_balance', 0),0, 0, config_data["interest_rate"], config_data["years"])
+    investment_projected_growth = calculate_future_value(config_data.get('investment_balance', 0),0, 0, config_data["interest_rate"], config_data["years"])
+    investment_principal = calculated_data.get("balance_with_expenses", 0)
+    house_capital_investment = house_info.get("house_capital_investment", 0)
 
     report_data = {
         "config_data": config_data,
@@ -1485,7 +1486,7 @@ def generate_report(config_data, scenario_name):
     }
 
     future_value_html = report_html_generator.generate_future_value_html_table(report_data)
-    current_value_html = report_html_generator.generate_current_networth_html_table(report_data, invest_capital_from_house_sale, sale_of_house_investment, Investment_projected_growth)
+    current_value_html = report_html_generator.generate_current_networth_html_table(report_data, invest_capital_from_house_sale, sale_of_house_investment, investment_projected_growth)
     scenario_summary_html = report_html_generator.generate_section_html(
         "Scenario",
         calculated_data.get("scenario_info", {})
@@ -1544,6 +1545,8 @@ def generate_report(config_data, scenario_name):
 
 
     summary_data = {
+        "house_capital_investment": house_capital_investment,
+        "investment_principal": investment_principal,
         "assumption_description": config_data.get("assumption_description", ""),
         "description_detail": config_data.get("description_detail", ""),
         "calculated_yearly_gain": calculated_data.get("calculated_yearly_gain", ""),

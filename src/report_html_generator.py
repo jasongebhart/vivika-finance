@@ -1,7 +1,12 @@
+import os
+from collections import defaultdict
+from bs4 import BeautifulSoup
 from utils import format_currency
 from html import escape
+from pathlib import Path
 import re
 import logging
+import json  # Import the JSON module
 
 def format_key(key):
     import re
@@ -443,28 +448,28 @@ def generate_table_html(data, custom_formatter=None, headers=None):
         str: The generated HTML content for the table.
     """
 
-    table_html = "<div class='table-container'><table>"
+    table_html = "          <div class='table-container'>\n            <table>\n"
 
     # Add table headers if provided
     if headers:
-        table_html += "<thead><tr>"
+        table_html += "         <thead><tr>"
         for header in headers:
             table_html += f"<th>{header}</th>"
-        table_html += "</tr></thead>"
+        table_html += "</tr></thead>\n"
 
     # Add table body with data
-    table_html += "<tbody>"
+    table_html += "             <tbody>\n"
     if isinstance(data, dict):
         for key, value in data.items():
             formatted_value = custom_formatter(value) if custom_formatter and value is not None else value
-            table_html += f"<tr><th>{key}</th><td>{formatted_value}</td></tr>"
+            table_html += f"             <tr><th>{key}</th><td>{formatted_value}</td></tr>\n"
     elif hasattr(data, '__dict__'):
         for attr, value in data.__dict__.items():
             formatted_value = custom_formatter(value) if custom_formatter and value is not None else value
-            table_html += f"<tr><th>{attr}</th><td>{formatted_value}</td></tr>"
-    table_html += "</tbody>"
+            table_html += f"             <tr><th>{attr}</th><td>{formatted_value}</td></tr>\n"
+    table_html += "            </tbody>\n"
 
-    table_html += "</table></div>"
+    table_html += "          </table>\n         </div>"
     return table_html
 
 
@@ -521,7 +526,7 @@ def generate_section_html(section_title, data, custom_formatter=None, headers=No
     else:
         # Standard section title without collapsibility
         if section_title:
-            html_content += f"<h3>{section_title}</h3>"
+            html_content += f"<h3>{section_title}</h3>\n"
 
     # Check if data is dict or object and pass headers if provided
     if isinstance(data, dict) or hasattr(data, '__dict__'):
@@ -612,8 +617,24 @@ def generate_html(report_data):
         else:
             formatted_data += f"{safe_int_conversion(data)}"
         return formatted_data
+ 
+    investment_principal = report_data["calculated_data"].get("balance_with_expenses", 0)
+    house_capital_investment = report_data["house_info"].get("house_capital_investment", 0)
 
-    html_content = """
+
+    # Ensure both are floats or ints and handle None cases if necessary
+    if investment_principal is None:
+        investment_principal = 0
+    if house_capital_investment is None:
+        house_capital_investment = 0
+
+
+    # Conditional check for viability
+    viable_status = "Viable" if (investment_principal + house_capital_investment) > 50000 else "Not Viable"
+
+    # Debugging the final result
+
+    html_content = f"""
     <!DOCTYPE html>
     <html lang="en">
     <head>
@@ -699,61 +720,81 @@ def generate_summary_report_html(summary_report_data):
         <script src="../static/js/toggleVisibility.js"></script>
     </head>
     <body class="print-columns">
-        <h1>Financial Scenario Summary Report</h1>
-        <div class='header-container'>
+      <h1>Financial Scenario Summary Report</h1>
+      <div class='container'> <!-- Main container for layout -->
+        <!-- Navigation Section -->
+        <!-- INSERT NAVIGATION HERE -->
+        <!-- Main Content Section -->
+        <main class='main-content'>
     """
 
-    # Loop through summary data and populate report content
+    # Loop through summary data to generate content
     for scenario_name, scenario_data in summary_report_data.items():
         scenario_id = scenario_name.replace(" ", "-").lower()
+        investment_principal = scenario_data.get("investment_principal", 0)
+        house_capital_investment = scenario_data.get("house_capital_investment", 0)
+
+        # Ensure both are floats or ints and handle None cases if necessary
+        if investment_principal is None:
+            investment_principal = 0
+        if house_capital_investment is None:
+            house_capital_investment = 0
+
+        # Check if the sum is greater than 50000
+        viable_status = (investment_principal + house_capital_investment) > 50000
         assumption_description = scenario_data.get("assumption_description", "")
         description_detail = scenario_data.get("description_detail", "")
-        html_content += f"""
-            <div class="content-wrapper">
-                <!-- Left section (detailed info) -->
-                <div id='{scenario_id}-detail' class='detailed-info'>
-                    <h3>Detailed Information</h3>
-                    <div>{scenario_data["assumptions_html"]}</div>
-                    <div>{scenario_data["monthly_expenses_html"]}</div>
-                    <div>{scenario_data["expenses_not_factored_html"]}</div>
-                    <div>{scenario_data["school_expenses_table_html"]}</div>
-                    <div>{scenario_data["investment_table_html"]}</div>
-                    <div>{scenario_data["retirement_table_html"]}</div>
-                    <div>{scenario_data["current_house_html"]}</div>
-                    <div>{scenario_data["new_house_html"]}</div>
-                </div>
 
-                <!-- Right section (main content) -->
-                <div class='main-content'>
-                    <div class='header'>
-                        <h2 id='{scenario_id}-title'>{escape(assumption_description)}</h2>
-                        <div id='{scenario_id}-content' class='section-content'>
-                            <div class='table-container'>
-                                <div>
-                                    {scenario_data["scenario_summary_info"]}
-                                    <p>{escape(description_detail)}</p>
-                                </div>
-                                <div>
-                                    <h3>Current Value</h3>
-                                    {scenario_data["current_value"]}
-                                </div>
-                                <div>
-                                    <h3>Future Value</h3>
-                                    {scenario_data["future_value"]}
-                                </div>
-                                <div>
-                                    {scenario_data["yearly_net_html"]}
-                                    {scenario_data["total_after_fees_html"]}
-                                </div>
-                            </div>
-                        </div>
-                    </div>
+        # Main Content Section for each scenario
+        html_content += f"""
+            <div id='{scenario_id}-main' class='scenario-section'>
+              <div class='header'>
+                <h2>{escape(assumption_description)}</h2>
+                <h4 class="scenario-status { "viable" if viable_status else 'not-viable' }">
+                  { "Viable" if viable_status else "Not Viable" }
+                </h4>
+              </div>
+              <div class='section-content'>
+                <div class='table-container'>
+                  <div>
+                    {scenario_data["scenario_summary_info"]}
+                    <p>{escape(description_detail)}</p>
+                  </div>
+                  <div>
+                    <h3>Current Value</h3>
+                    {scenario_data["current_value"]}
+                  </div>
+                  <div>
+                    <h3>Future Value</h3>
+                    {scenario_data["future_value"]}
+                  </div>
+                  <div>
+                    {scenario_data["yearly_net_html"]}
+                    {scenario_data["total_after_fees_html"]}
+                  </div>
                 </div>
+               </div>
+            </div>
+        </main> <!-- End of main-content -->
+        """
+
+        # Detailed Information Section (under each scenario)
+        html_content += f"""
+            <div id='{scenario_id}-detail' class='detailed-info'>
+                <h3>Detailed Information</h3>
+                <div>{scenario_data["assumptions_html"]}</div>
+                <div>{scenario_data["monthly_expenses_html"]}</div>
+                <div>{scenario_data["expenses_not_factored_html"]}</div>
+                <div>{scenario_data["school_expenses_table_html"]}</div>
+                <div>{scenario_data["investment_table_html"]}</div>
+                <div>{scenario_data["retirement_table_html"]}</div>
+                <div>{scenario_data["current_house_html"]}</div>
+                <div>{scenario_data["new_house_html"]}</div>
             </div>
         """
 
     html_content += """
-        </div> <!-- End of header-container -->
+        </div> <!-- End of container -->
     </body>
     </html>
     """
@@ -980,3 +1021,449 @@ def generate_retirement_table(config_data, table_class="retirement-table"):
         html_content += "</div>  <!-- End of hidden details section -->\n"  # End of parent section
 
     return html_content
+
+def generate_friendly_name(scenario_file):
+    """Generate a user-friendly name for the scenario file."""
+    parts = scenario_file.replace('.html', '').split('_')
+    
+    # Example of creating a friendly name
+    location = parts[0].replace('sf', 'San Francisco').replace('mn', 'Minnesota').capitalize()
+    names = ' & '.join(part.capitalize() for part in parts[1:3])  # Example: "Hav & Jason"
+    work_status = parts[2].replace('-', ' ').capitalize()  # "Retired Work", etc.
+    ownership = parts[3].replace('public', 'Public').replace('own', 'Own').replace('private', 'Private').capitalize()
+
+    # Create a user-friendly description
+    friendly_name = f"{names} in {location}, {work_status} ({ownership})"
+    return friendly_name
+
+
+# Helper function to check the viability status
+def check_viability_status(html_content):
+    soup = BeautifulSoup(html_content, 'html.parser')
+    status_element = soup.find('h4', class_='scenario-status')
+
+    # If the status element is found, check its class
+    if status_element:
+        classes = status_element.get('class', [])
+        if 'viable' in classes:
+            return 'viable'
+        elif 'not-viable' in classes:
+            return 'not-viable'
+    
+    # Return 'unknown' if no status element is found or no known classes are present
+    return 'unknown'
+
+
+
+# Define dictionaries for name and work status lookups
+name_lookup = {
+    'hav': 'Havilah',
+    'jason': 'Jason',
+}
+
+work_status_lookup = {
+    'retired': 'Retired',
+    'work': 'Working',
+    'work-retired': 'Working & Retired',
+    'retired-retired': 'Retired',
+    'work-work': 'Working',
+    'retired-work': 'Retired & Working',
+}
+
+# Mapping for location names
+location_lookup = {
+    'mn': 'Minnesota',
+    'sf': 'San Francisco',
+}
+
+ownership_type_lookup = {
+    'own': '🏠 Own House',
+    'rent': 'Rent',
+}
+
+school_type_lookup = {
+    'public': '🎓 Public HS',
+    'private': '🎓 Private HS',
+    'pripub': '🎓 Public & Private HS',
+}
+
+def extract_attributes_from_filename(filename):
+    # Remove the extension
+    name_parts = filename[:-5].split('_')
+
+    # Check that we have enough parts
+    if len(name_parts) < 5:
+        raise ValueError("Filename does not have enough parts to unpack.")
+
+    # Extract relevant parts
+    location = name_parts[1]  # 'mn' or 'sf'
+    names = name_parts[2:4]  # ['hav', 'jason']
+    work_status = name_parts[4]  # 'work-retired'
+    
+    # Adjust ownership_type and school_type, while capturing extra content if available
+    ownership_type = name_parts[5] if len(name_parts) > 5 else ""
+    school_type = name_parts[6] if len(name_parts) > 6 else ""  # 'public' or similar
+
+    # Capture any additional content beyond school type
+    extra_content = "_".join(name_parts[7:]) if len(name_parts) > 7 else ""  # Join any extra parts into a single string
+
+    # Generate full names using the lookup
+    full_names = [name_lookup.get(name, name).title() for name in names]
+    
+    # Map ownership and school types to friendly names
+    friendly_ownership = ownership_type_lookup.get(ownership_type, ownership_type.title())
+    friendly_school = school_type_lookup.get(school_type, school_type.title())
+    
+    # Include extra content in the report name if available
+    report_name_suffix = f" ({extra_content})" if extra_content else ""
+    
+    # Combine for the simplified name
+    simplified_name = f"{friendly_ownership} {friendly_school}".strip()
+
+    # Add the report name suffix to the simplified name if it exists
+    if report_name_suffix:
+        simplified_name += report_name_suffix
+
+    return location, full_names, work_status, simplified_name, report_name_suffix
+
+
+def process_html_file(file_path):
+    """Process an HTML file to extract relevant attributes."""
+    with open(file_path, 'r', encoding='utf-8') as f:
+        html_content = f.read()
+
+    # Extract attributes from the filename
+    try:
+        location, full_names, work_status, simplified_name, report_name_suffix = extract_attributes_from_filename(os.path.basename(file_path))
+        return html_content, location, full_names, work_status, simplified_name, report_name_suffix
+    except ValueError as e:
+        print(f"Skipping file {file_path}: {e}")
+        return None
+
+def _generate_navigation(toc_content):
+    """Generate structured navigation HTML with collapsible sections."""
+    html_content = "<nav class='site-navigation'>\n"
+    
+    # Add a div container for flexbox layout for buttons
+    html_content += "<div class='nav-buttons'>\n"
+
+    for viability in toc_content:
+        formatted_viability = viability.replace('-', ' ').title()
+        section_id = f"{viability}-content"
+        button_id = f"{viability}-button"
+
+        # Check if the current viability is "viable" to add the active class
+        active_class = "active" if viability == "viable" else ""
+
+        # Add collapsible button inside the nav-buttons div for flexbox layout
+        html_content += f"<button id='{button_id}' type='button' class='collapsible nav-collapsible {active_class}' onclick='toggleCollapsible(\"{button_id}\", \"{section_id}\", true)'>{formatted_viability}</button>\n"
+    
+    # Close the div for buttons
+    html_content += "</div>\n"
+
+    # Now add the content sections that will be collapsible
+    for viability in toc_content:
+        section_id = f"{viability}-content"
+
+        # Set the 'Viable' section to be visible by default
+        if viability == "viable":
+            html_content += f"<ul id='{section_id}' class='viability-list collapsible-content nav-collapsible-content' style='max-height:initial; overflow:hidden;'>\n"  # Make it visible
+        else:
+            html_content += f"<ul id='{section_id}' class='viability-list collapsible-content nav-collapsible-content' style='max-height:0; overflow:hidden;'>\n"  # Hidden by default
+
+        for location, reports in toc_content[viability].items():
+            html_content += f"  <li class='location-item'>{location_lookup.get(location, location).title()}\n"
+            html_content += "    <ul class='work-status-list'>\n"
+
+            work_status_dict = {}
+            for file, simplified_name, _, work_status, report_name_suffix in reports:
+                if work_status not in work_status_dict:
+                    work_status_dict[work_status] = []
+                work_status_dict[work_status].append((file, simplified_name))
+
+            for work_status, items in work_status_dict.items():
+                friendly_status = work_status_lookup.get(work_status, work_status).title()
+                html_content += f"      <li class='work-status-item'>{friendly_status}<ul class='report-list'>\n"
+
+                for file, simplified_name in items:
+                    html_content += f"        <li class='report-item'><a href='{file}'>{simplified_name}</a></li>\n"
+
+                html_content += "      </ul></li>\n"
+
+            html_content += "    </ul>\n"
+            html_content += "  </li>\n"
+
+        html_content += "</ul>\n"  # Close collapsible section
+
+    html_content += "</nav>\n"
+    return html_content
+
+def generate_navigation(toc_content):
+    """Generate structured navigation HTML with collapsible sections."""
+    html_content = "<nav class='site-navigation'>\n"
+    
+    # Add a div container for flexbox layout for buttons
+    html_content += "<div class='nav-buttons'>\n"
+
+    for viability in toc_content:
+        formatted_viability = viability.replace('-', ' ').title()
+        section_id = f"{viability}-content"
+        button_id = f"{viability}-button"
+
+        # Check if the current viability is "viable" to add the active class
+        active_class = "active" if viability == "viable" else ""
+
+        # Add collapsible button inside the nav-buttons div for flexbox layout
+        html_content += f"<button id='{button_id}' type='button' class='collapsible nav-collapsible {active_class}' onclick='toggleCollapsible(\"{button_id}\", \"{section_id}\", true)'>{formatted_viability}</button>\n"
+    
+    # Close the div for buttons
+    html_content += "</div>\n"
+
+    # Now add the content sections that will be collapsible
+    for viability in toc_content:
+        section_id = f"{viability}-content"
+
+        # Set the 'Viable' section to be visible by default
+        if viability == "viable":
+            html_content += f"<ul id='{section_id}' class='viability-list collapsible-content nav-collapsible-content' style='max-height:initial; overflow:hidden;'>\n"  # Make it visible
+        else:
+            html_content += f"<ul id='{section_id}' class='viability-list collapsible-content nav-collapsible-content' style='max-height:0; overflow:hidden;'>\n"  # Hidden by default
+
+        for location, reports in toc_content[viability].items():
+            # Adding class for location items
+            html_content += f"  <li class='location-item'>{location_lookup.get(location, location).title()}\n"
+            html_content += "    <ul class='work-status-list'>\n"  # Work status list with its class
+
+            # Organize reports by work status
+            work_status_dict = {}
+            for file, simplified_name, _, work_status, report_name_suffix in reports:
+                if work_status not in work_status_dict:
+                    work_status_dict[work_status] = []
+                work_status_dict[work_status].append((file, simplified_name))
+
+            for work_status, items in work_status_dict.items():
+                # Add work-status-item and report-list classes
+                friendly_status = work_status_lookup.get(work_status, work_status).title()
+                html_content += f"      <li class='work-status-item'>{friendly_status}<ul class='report-list'>\n"
+
+                for file, simplified_name in items:
+                    # Add report-item class to list item and maintain anchor for the report
+                    html_content += f"        <li class='report-item'><a href='{file}'>{simplified_name}</a></li>\n"
+
+                html_content += "      </ul></li>\n"  # Close work status item
+
+            html_content += "    </ul>\n"  # Close work status list
+            html_content += "  </li>\n"  # Close location item
+
+        html_content += "</ul>\n"  # Close collapsible section
+
+    html_content += "</nav>\n"
+    return html_content
+
+
+def generate_navigation_old(toc_content):
+    """Generate structured navigation HTML with collapsible sections."""
+    html_content = "<nav class='site-navigation'>\n"
+    
+    # Add a div container for flexbox layout for buttons
+    html_content += "<div class='nav-buttons'>\n"
+
+    for viability in toc_content:
+        formatted_viability = viability.replace('-', ' ').title()
+        section_id = f"{viability}-content"
+        button_id = f"{viability}-button"
+
+        # Add collapsible button inside the nav-buttons div for flexbox layout
+        html_content += f"<button id='{button_id}' type='button' class='collapsible nav-collapsible' onclick='toggleCollapsible(\"{button_id}\", \"{section_id}\", true)'>{formatted_viability}</button>\n"
+    
+    # Close the div for buttons
+    html_content += "</div>\n"
+
+    # Now add the content sections that will be collapsible
+    for viability in toc_content:
+        section_id = f"{viability}-content"
+
+        # Add the collapsible content section (hidden by default)
+        html_content += f"<ul id='{section_id}' class='viability-list collapsible-content nav-collapsible-content' >\n" 
+
+        for location, reports in toc_content[viability].items():
+            html_content += f"  <li class='location-item'>{location_lookup.get(location, location).title()}\n"
+            html_content += "    <ul class='work-status-list'>\n"
+
+            work_status_dict = {}
+            for file, simplified_name, _, work_status, report_name_suffix in reports:
+                if work_status not in work_status_dict:
+                    work_status_dict[work_status] = []
+                work_status_dict[work_status].append((file, simplified_name))
+
+            for work_status, items in work_status_dict.items():
+                friendly_status = work_status_lookup.get(work_status, work_status).title()
+                html_content += f"      <li class='work-status-item'>{friendly_status}<ul class='report-list'>\n"
+
+                for file, simplified_name in items:
+                    html_content += f"        <li class='report-item'><a href='{file}'>{simplified_name}</a></li>\n"
+
+                html_content += "      </ul></li>\n"
+
+            html_content += "    </ul>\n"
+            html_content += "  </li>\n"
+
+        html_content += "</ul>\n"  # Close collapsible section
+
+    html_content += "</nav>\n"
+    return html_content
+
+
+
+def parse_filename(filename): 
+    """Parse the filename to generate a simplified and user-friendly title."""
+    
+    # Determine housing type
+    housing_type = "Own House" if "_own_" in filename else "Rent House"
+    
+    # Determine school type(s)
+    if "pripub" in filename:
+        school_type = "Private & Public HS Blend"  # Updated to use the new term
+    elif "private" in filename:
+        school_type = "Private HS"
+    elif "public" in filename:
+        school_type = "Public HS"
+    else:
+        school_type = "Unknown School Type"
+    
+    # Extract years
+    years = None
+    if "3yrs" in filename:
+        years = "3 Years"
+    elif "4yrs" in filename:
+        years = "4 Years"
+    elif "6yrs" in filename:
+        years = "6 Years"
+    
+    # Construct the final simplified name
+    simplified_name = f"{housing_type} ({school_type})"
+    
+    if years:
+        simplified_name += f" - {years}"
+    
+    return simplified_name
+
+
+def generate_index(html_dir):
+    """Process function to generate the index report."""
+    html_files = get_html_files(html_dir)
+
+    if not html_files:
+        print(f"No scenario HTML files found in {html_dir}.")
+        return
+
+    toc_content = organize_content(html_files, html_dir)
+
+    # Generate final HTML content
+    final_html_content = generate_html_structure(toc_content)
+
+    # Write the HTML content to a file
+    output_file = os.path.join(html_dir, "index.html")
+    write_html_to_file(output_file, final_html_content)
+    print(f"Report generated: {output_file}")
+
+
+def get_html_files(html_dir):
+    """Get a list of HTML files in the specified directory."""
+    all_files = os.listdir(html_dir)
+    return [f for f in all_files if f.endswith('.html') and f.startswith('scenario')]
+
+
+def organize_content(html_files, html_dir):
+    """Organize content from HTML files into a structured format."""
+    # Initialize with 'viable', 'not-viable', and 'unknown'
+    toc_content = {"viable": {}, "not-viable": {}, "unknown": {}}
+
+    for file in html_files:
+        file_path = os.path.join(html_dir, file)
+        print(f"Processing file: {file_path}")
+
+        result = process_html_file(file_path)
+        if result is None:
+            continue
+
+        html_content, location, full_names, work_status, simplified_name, report_name_suffix = result
+
+        # Check viability status
+        viability = check_viability_status(html_content)
+
+        # Handle unexpected viability statuses
+        if viability not in toc_content:
+            logging.warning(f"Unexpected viability status '{viability}' for file {file_path}. Defaulting to 'unknown'.")
+            viability = 'unknown'  # Default to 'unknown' if the status is unrecognized
+
+        # Initialize location in toc_content if it doesn't exist
+        if location not in toc_content[viability]:
+            toc_content[viability][location] = []
+
+        # Append the file details
+        toc_content[viability][location].append((file, simplified_name, full_names, work_status, report_name_suffix))
+
+    return toc_content
+
+def process_reports(html_dir):
+    """Process function to gather report data without generating HTML."""
+    html_files = get_html_files(html_dir)
+
+    if not html_files:
+        print(f"No scenario HTML files found in {html_dir}.")
+        return
+
+    toc_content = organize_content(html_files, html_dir)
+    
+    # Generate navigation data
+    navigation_data = generate_navigation(toc_content)
+    
+    # Instead of writing to a file, return or print the navigation data
+    return navigation_data
+
+def generate_html_structure(toc_content):
+    """Generate the HTML structure from the organized content."""
+    html_content = """
+    <html>
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Financial Scenario Summary Report</title>
+        <link rel="stylesheet" href="../static/css/styles.css">
+        <script src="../static/js/toggleVisibility.js"></script>
+    </head>
+    <body>
+    """
+    
+    html_content += generate_navigation(toc_content)
+    
+    html_content += """
+    </body>
+    </html>
+    """
+    return html_content
+
+
+def write_html_to_file(output_file, content):
+    """Write the generated HTML content to a specified file."""
+    with open(output_file, 'w', encoding='utf-8') as f:
+        f.write(content)
+
+def generate_scenario_html(scenario_title, scenario_content, navigation, output_file):
+    # Read the template file
+    with open('../templates/scenario_template.html', 'r', encoding='utf-8') as template_file:
+        template = template_file.read()
+
+    # Replace placeholders with actual values
+    html_content = template.replace('{{ title }}', scenario_title) \
+                           .replace('{{ navigation }}', navigation) \
+                           .replace('{{ scenario_title }}', scenario_title) \
+                           .replace('{{ scenario_content }}', scenario_content)
+
+    # Write the generated HTML to a file
+    with open(output_file, 'w', encoding='utf-8') as output:
+        output.write(html_content)
+    print(f"Generated HTML for {scenario_title} at {output_file}")

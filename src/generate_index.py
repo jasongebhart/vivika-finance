@@ -1,87 +1,58 @@
 import os
 from collections import defaultdict
+from bs4 import BeautifulSoup
 
-# Directory containing the HTML files (change this to your reports directory)
+# Directory containing the HTML files
 reports_dir = '../reports'
 
 # Output file (the index page)
 index_file = os.path.join(reports_dir, 'index.html')
 
-# Location abbreviation mapping
-location_map = {
-    'sf': 'San Francisco',
-    'ny': 'New York',
-    'mn': 'Minnesota',
-}
+# Helper function to extract key attributes from filenames
+def extract_attributes_from_filename(filename):
+    filename = filename.replace('summary_', '').replace('scenario_', '').replace('.html', '')
+    parts = filename.split('_')
+    
+    # Create a more descriptive name with proper formatting
+    names = parts[1].replace('-', ' & ').capitalize()  # Example: "Hav & Jason"
+    work_status = parts[2].replace('-', ' ').capitalize()  # Example: "Retired" or "Work"
+    
+    # Simplify names for the aside
+    location = parts[0].replace('sf', 'San Francisco').replace('mn', 'Minnesota').capitalize()  # Map as needed
+    ownership = parts[3].replace('public', 'Public').replace('own', 'Own').replace('private', 'Private').capitalize()
+    
+    simplified_name = f"{location}, {ownership}"
+    
+    return names, work_status, simplified_name
 
-# Get a list of all HTML files in the directory that start with "summary_" or "scenario_"
+# Get a list of all HTML files in the directory
 html_files = [f for f in os.listdir(reports_dir) if f.endswith('.html') and (f.startswith('summary_') or f.startswith('scenario_'))]
 
-# Helper function to create readable titles from filenames, excluding names and work statuses
-def make_title_from_filename(filename):
-    if filename.startswith('summary_'):
-        filename = filename.replace('summary_', '').replace('.html', '')
-    elif filename.startswith('scenario_'):
-        filename = filename.replace('scenario_', '').replace('.html', '')
+# Helper function to check the viability status
+def check_viability_status(html_content):
+    soup = BeautifulSoup(html_content, 'html.parser')
+    status_element = soup.find('h4', class_='scenario-status')
+    if status_element:
+        return 'viable' if 'viable' in status_element.get('class', []) else 'not-viable'
+    return 'unknown'
 
-    parts = filename.split('_')
+# Group files by viability and work status
+file_groups = defaultdict(lambda: defaultdict(lambda: defaultdict(list)))  # Nested defaultdict
 
-    location = location_map.get(parts[0], parts[0].capitalize())
+# Process each HTML file
+for html_file in html_files:
+    file_path = os.path.join(reports_dir, html_file)
+    with open(file_path, 'r', encoding='utf-8') as f:
+        content = f.read()
+
+    viability_status = check_viability_status(content)
+    names, work_status, simplified_name = extract_attributes_from_filename(html_file)
     
-    # Rent and school status if they exist
-    rent_status = parts[4].capitalize() if len(parts) > 4 else ""
-    school_status = parts[5].capitalize() if len(parts) > 5 else ""
-
-    # Any unrecognized parts are treated as additional suffixes and included in the title
-    suffixes = " ".join(parts[6:]).capitalize() if len(parts) > 6 else ""
-
-    # Construct title excluding names and work statuses, but including other suffixes
-    title = f"{location}"
-    if rent_status:
-        title += f", {rent_status}"
-    if school_status:
-        title += f", {school_status}"
-    if suffixes:
-        title += f", {suffixes}"
-
-    return title
-
-def get_human_readable_status(name1, name2, status1, status2):
-    if status1 == status2:
-        return f"{name1} & {name2} {status1}"
-    else:
-        return f"{name1} ({status1}) & {name2} ({status2})"
-
-def get_status_key_from_filename(filename):
-    # Remove any prefixes like 'scenario_' or 'summary_' before processing
-    if filename.startswith('scenario_'):
-        filename = filename.replace('scenario_', '')
-    elif filename.startswith('summary_'):
-        filename = filename.replace('summary_', '')
-
-    # Split the filename into parts
-    parts = filename.split('_')
+    # Create a composite key for names and work status
+    key = f"{names} {work_status}"
     
-    # Check if there are enough parts to extract the status
-    if len(parts) >= 4:
-        name1 = parts[1].capitalize()
-        name2 = parts[2].capitalize()
-
-        # Work status is the 4th part, which might look like 'retired-retired'
-        work_status_part = parts[3]
-
-        # Split the work status into two statuses
-        statuses = work_status_part.split('-')
-
-        # Check if both status1 and status2 exist
-        if len(statuses) == 2:
-            status1 = statuses[0].capitalize()
-            status2 = statuses[1].capitalize()
-            return get_human_readable_status(name1, name2, status1, status2)
-        elif len(statuses) == 1:
-            status1 = statuses[0].capitalize()
-            return f"{name1} ({status1}) and {name2} (Unknown)"
-    return "Unknown"
+    # Add files to the corresponding group
+    file_groups[viability_status][key][simplified_name].append(html_file)
 
 # Generate the index.html
 html_content = """
@@ -95,66 +66,101 @@ html_content = """
 </head>
 <body>
     <h1>Overview of Financial Scenarios and Reports</h1>
-    <ul>
 """
 
-# Add each HTML file with a descriptive title
-for html_file in html_files:
-    title = make_title_from_filename(html_file)
-    html_content += f'<li><a href="{html_file}">{title}</a></li>\n'
+# Viable section
+html_content += "<h2>Viable Scenarios</h2>\n"
+if file_groups['viable']:
+    html_content += "<ul>\n"
+    for work_key, simplified_group in file_groups['viable'].items():
+        html_content += f"<li><strong>{work_key}</strong>\n<ul>\n"
+        for simplified_name, files in simplified_group.items():
+            html_content += f"<li><strong>{simplified_name}</strong>\n<ul>\n"
+            for file in files:
+                html_content += f'<li><a href="{file}">{file}</a></li>\n'
+            html_content += "</ul></li>\n"
+        html_content += "</ul></li>\n"
+    html_content += "</ul>\n"
+else:
+    html_content += "<p>No viable scenarios found.</p>\n"
+
+# Not-viable section
+html_content += "<h2>Not Viable Scenarios</h2>\n"
+if file_groups['not-viable']:
+    html_content += "<ul>\n"
+    for work_key, simplified_group in file_groups['not-viable'].items():
+        html_content += f"<li><strong>{work_key}</strong>\n<ul>\n"
+        for simplified_name, files in simplified_group.items():
+            html_content += f"<li><strong>{simplified_name}</strong>\n<ul>\n"
+            for file in files:
+                html_content += f'<li><a href="{file}">{file}</a></li>\n'
+            html_content += "</ul></li>\n"
+        html_content += "</ul></li>\n"
+    html_content += "</ul>\n"
+else:
+    html_content += "<p>No not-viable scenarios found.</p>\n"
 
 html_content += """
-    </ul>
 </body>
 </html>
 """
 
+# Write the generated index content to the file
 with open(index_file, 'w', encoding='utf-8') as f:
     f.write(html_content)
 
 print(f"Index file generated: {index_file}")
 
-# Create a dictionary to group HTML files by their work status
-grouped_files = defaultdict(list)
-for html_file in html_files:
-    status_key = get_status_key_from_filename(html_file)
-    grouped_files[status_key].append(html_file)
-
-# Now modify each report file to add the <aside> navigation while preserving the main content
+# Add separate <aside> sections to individual HTML files
 for html_file in html_files:
     report_file_path = os.path.join(reports_dir, html_file)
-
+    
     with open(report_file_path, 'r', encoding='utf-8') as file:
         original_content = file.read()
 
-    if '</body>' in original_content:
-        aside_content = """
-        <aside class='index-navigation'>
-            <h2>Other Reports</h2>
-            <nav>
-        """
-
-        # Add links grouped by work status
-        for status_group, files_in_group in grouped_files.items():
-            aside_content += f"<h3>{status_group}</h3>\n<ul>\n"
-            for other_file in files_in_group:
-                title = make_title_from_filename(other_file)
-                
-                # Check if it's the active report and apply 'active' class
-                if other_file == html_file:
-                    aside_content += f'<li><a href="{other_file}" class="active">{title}</a></li>\n'
+    soup = BeautifulSoup(original_content, 'html.parser')
+    
+    # Create aside content for Viable scenarios
+    viable_aside_content = "<aside class='index-navigation'>\n<h2>Viable Scenarios</h2>\n<nav>\n<ul>\n"
+    for work_key, simplified_group in file_groups['viable'].items():
+        viable_aside_content += f"<li><strong>{work_key}</strong>\n<ul>\n"
+        for simplified_name, files in simplified_group.items():
+            viable_aside_content += f"<li><strong>{simplified_name}</strong>\n<ul>\n"
+            for viable_file in files:
+                if viable_file == html_file:
+                    viable_aside_content += f'<li><a href="{viable_file}" class="active">{viable_file}</a></li>\n'
                 else:
-                    aside_content += f'<li><a href="{other_file}">{title}</a></li>\n'
-            aside_content += "</ul>\n"
+                    viable_aside_content += f'<li><a href="{viable_file}">{viable_file}</a></li>\n'
+            viable_aside_content += "</ul></li>\n"
+        viable_aside_content += "</ul></li>\n"
+    viable_aside_content += "</ul>\n</nav>\n</aside>\n"
 
-        aside_content += """
-            </nav>
-        </aside>
-        """
+    # Create aside content for Not Viable scenarios
+    not_viable_aside_content = "<aside class='index-navigation'>\n<h2>Not Viable Scenarios</h2>\n<nav>\n<ul>\n"
+    for work_key, simplified_group in file_groups['not-viable'].items():
+        not_viable_aside_content += f"<li><strong>{work_key}</strong>\n<ul>\n"
+        for simplified_name, files in simplified_group.items():
+            not_viable_aside_content += f"<li><strong>{simplified_name}</strong>\n<ul>\n"
+            for not_viable_file in files:
+                if not_viable_file == html_file:
+                    not_viable_aside_content += f'<li><a href="{not_viable_file}" class="active">{not_viable_file}</a></li>\n'
+                else:
+                    not_viable_aside_content += f'<li><a href="{not_viable_file}">{not_viable_file}</a></li>\n'
+            not_viable_aside_content += "</ul></li>\n"
+        not_viable_aside_content += "</ul></li>\n"
+    not_viable_aside_content += "</ul>\n</nav>\n</aside>\n"
 
-        updated_content = original_content.replace('</body>', f'{aside_content}\n</body>')
+    # Insert aside content before </body>
+    if soup.body:
+        # Ensure each aside is separated properly
+        aside_container = soup.new_tag('div')
+        aside_container.append(BeautifulSoup(viable_aside_content, 'html.parser'))
+        aside_container.append(BeautifulSoup(not_viable_aside_content, 'html.parser'))
+        
+        soup.body.append(aside_container)
 
-        with open(report_file_path, 'w', encoding='utf-8') as file:
-            file.write(updated_content)
+    # Write the updated content back to the report file
+    with open(report_file_path, 'w', encoding='utf-8') as file:
+        file.write(str(soup))
 
-        print(f"Updated report file: {report_file_path}")
+    print(f"Updated report file: {report_file_path}")
