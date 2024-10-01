@@ -17,6 +17,7 @@ body {
 
 .container {
     display: flex; /* Use flexbox layout */
+    flex-direction: row; /* Overall structure - multiple scenarios vertically */
 }
 
 /* Styles for headings */
@@ -67,9 +68,10 @@ h2 {
 
 /* Main content on the right */
 .main-content {
-    flex: 1;                         /* Allow the main content to grow */
+    flex: 2;                         /* Allow the main content to grow */
     background-color: #fff;               /* White background */
     padding: 10px;                        /* Inner padding */
+    margin: 0 5px;
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1); /* Shadow for depth */
 }
 
@@ -77,10 +79,9 @@ h2 {
 .detailed-info {
     flex: 0 0 335px;                      /* Fixed width for detailed info */
     background-color: #f9f9f9;            /* Light background */
-    padding: 15px;                        /* Inner padding */
+    padding: 5px;                        /* Inner padding */
     box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1); /* Shadow for depth */
-    margin-left: 10px;                    /* Space between detailed info and main content */
-}
+ }
 .detailed-info th, td {
     border: 1px solid #ddd; /* Set border */
     padding: 8px; /* Add padding */
@@ -215,6 +216,7 @@ th {
     opacity: 0;
     transition: opacity 0.3s;
     box-shadow: 0px 0px 10px rgba(0, 0, 0, 0.5);
+    white-space: normal;
 }
 
 /* Tooltip text on hover for net worth fields */
@@ -270,21 +272,29 @@ th {
 
 /* CSS for positioning aside as a sidebar */
 .site-navigation {
-    display: flex;
-    flex-direction: column; /* Keeps the buttons and lists in a column by default */
-    width: 265px; /* Set a fixed width for the navigation */
+    flex: 0 0 300px; /* Navigation takes a fixed width */
     background-color: #f4f4f4; /* Light background for visibility */
     padding: 15px; /* Add some padding */
     box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1); /* Shadow for depth */
-    border-radius: 8px;
-    margin-right: 10px;                    
+    border-radius: 8px;                  
 }
 
+.nav-collapsible-content {
+    padding: 0;
+}
+
+.nav-collapsible {
+    border-bottom:#007bff;
+    padding: 0;
+    font-size: .7em;
+}
 .nav-buttons {
     display: flex;
     justify-content: flex-start; /* Aligns buttons to the left (use 'center' or 'space-between' if needed) */
     gap: 10px; /* Adds some space between the buttons */
     flex-wrap: wrap; /* Ensures buttons wrap to the next line if there's not enough space */
+    border: 3px solid #ddd; /* Optional border for clarity */
+    font-size: 1.5em;
 }
 
 
@@ -298,14 +308,10 @@ th {
     padding: 0;
 }
 
-.site-navigation ul li {
-    margin: 8px 0;
-}
 
 .site-navigation ul li a {
     text-decoration: none;
     color: #007bff;              /* Link color */
-    font-weight: bold;
     transition: background-color 0.3s ease, color 0.3s ease; /* Smooth transition effect */
 }
 
@@ -334,8 +340,13 @@ th {
 }
 
 .location-item {
-    margin: 10px 0; /* Space between locations */
-    font-size: 1.2em;
+    font-size: 1.6em;
+    margin-top: 8px;
+    margin-bottom: 30px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    border: 1px solid #ddd;
+    padding-left: 5px;
+    padding-top: 3px;
 }
 
 .location-title {
@@ -349,6 +360,7 @@ th {
 .work-status-list {
     list-style-type: circle; /* Change bullet style */
     margin-left: auto; /* Indent work status lists */
+    font-size: 1.2em;
 }
 
 .work-status-title {
@@ -358,16 +370,18 @@ th {
 
 .work-status-item {
     margin: 5px 0; /* Space between work statuses */
-    font-size: small;
+    font-size: medium;
+    padding-left: 5px;
 }
 
 .report-list {
     list-style-type: square; /* Change bullet style */
-    margin-left: 20px; /* Indent report lists */
+    margin: 13px; /* Indent report lists */
 }
 
 .report-item {
-    margin: 3px 0; /* Space between report links */
+    margin: 5px 0; /* Space between report links */
+    font-size: medium;
 }
 
 .report-item a {
@@ -377,6 +391,11 @@ th {
 
 .report-item a:hover {
     text-decoration: underline; /* Underline on hover */
+}
+
+.scenario-wrapper {
+    display: flex; /* Flexbox for the scenario and detailed info side by side */
+    gap: 20px; /* Add space between them */
 }
 .scenario-section {
     border: 1px solid #ddd; /* Optional border for clarity */

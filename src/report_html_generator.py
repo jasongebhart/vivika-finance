@@ -171,6 +171,7 @@ def generate_new_house_html(new_house):
     return html_content
 
 def generate_future_value_html_table(report_data):
+    """Generates HTML content for the future value section of the financial report."""
     years = report_data["config_data"]["years"]
     new_house = report_data["house_info"]["new_house"]
     new_house_value = report_data["house_info"]["new_house_value"]
@@ -181,89 +182,169 @@ def generate_future_value_html_table(report_data):
     future_retirement_value_contrib = report_data["calculated_data"]["future_retirement_value_contrib"]
     combined_networth_future = report_data["calculated_data"]["combined_networth_future"]
 
+    interest_rate = report_data["config_data"]["interest_rate"]
+    # Calculate total retirement assets
+    total_retirement_assets = future_retirement_value_contrib + balance_with_expenses + total_employee_stockplan
+
+    # Calculate safe withdrawal amount
+    safe_withdrawal_amount = 0.04 * total_retirement_assets
+    # Calculate future values
+    oneyear_house_value = house_networth_future * (0.035) 
+    oneyear_stock_value = total_retirement_assets * (interest_rate) 
+
+    # Combined future value
+    oneyear_growth = oneyear_house_value + oneyear_stock_value
+    # seven_percent_networth = 0.07 * combined_networth_future
+
+    # HTML table rows
+    rows = [
+        generate_net_worth_row(
+            "House Net Worth",
+            new_house_value if new_house else house_networth_future,
+        ),
+        generate_net_worth_row(
+            "House Re-Investment",
+            house_capital_investment,
+            f"This represents the capital that will be reinvested following the sale of the house, reflecting its value after {years} years of anticipated growth."
+        ),
+        generate_net_worth_row(
+            "Stock Plan Investment Balance",
+            total_employee_stockplan,
+        ),
+        generate_net_worth_row(
+            "Investment Balance",
+            balance_with_expenses,
+        ),
+        generate_net_worth_row(
+            "Retirement Balance",
+            future_retirement_value_contrib,
+        ),
+        generate_net_worth_row(
+            "Total Investment Assets",
+            total_retirement_assets,
+            "The total investment assets include the sum of your investment balance, retirement principal, and Stock Plan Investment."
+        ),
+        generate_net_worth_row(
+            "Net Worth",
+            combined_networth_future,
+        ),
+        generate_net_worth_row(
+            "Projected One-Year Growth",
+            oneyear_growth,
+            f"A {interest_rate} return on net worth is often used as a hypothetical annual growth rate for investments in the stock market. <br>0.035 represents the growth of the house over time."
+        ),
+        generate_net_worth_row(
+            "4% Safe Withdrawal Rate",
+            safe_withdrawal_amount,
+        ),
+    ]
+
+    # Combine all rows into the table
     html_content = f"""
     <div class='table-container'>
         <table>
-            <tr><th>House Net worth</th><td>${new_house_value if new_house else house_networth_future:,.0f}</td></tr>
-            <tr><th>House Re-Investment</th><td>${int(house_capital_investment):,}</td></tr>
-            <tr><th>Stock Plan Investment Principal</th><td>${int(total_employee_stockplan):,}</td></tr>
-            <tr><th>Investment Principal</th><td>${int(balance_with_expenses):,}</td></tr>
-            <tr><th>Retirement Principal</th><td>${int(future_retirement_value_contrib):,}</td></tr>
-            <tr><th>Net worth</th><td>${combined_networth_future:,.0f}</td></tr>
-            <tr><th># of Years</th><td>{years}</td></tr>
+            {''.join(rows)}
         </table>
     </div>
     """
     return html_content
 
-def generate_current_networth_html_table(report_data, invest_capital_from_house_sale, sale_of_house_investment, Investment_projected_growth):
+
+def generate_tooltip(icon, tooltip_text):
+    """Generates HTML for a tooltip."""
+    return f"""
+        <span class="tooltip">
+            <span class="tooltip-icon" aria-label="Tooltip available" role="tooltip">ℹ️</span>
+            <span class="tooltip-text">{tooltip_text}</span>
+        </span>
+    """
+
+def generate_net_worth_row(label, value, tooltip_text=None):
+    """Generates a row for the net worth table."""
+    tooltip_html = generate_tooltip("ℹ️", tooltip_text) if tooltip_text else ""
+    return f"""
+        <tr>
+            <th>{label}</th>
+            <td>
+                <div class="net-worth-field">
+                    <span class="net-worth">{format_currency(value)}</span>
+                    {tooltip_html}
+                </div>
+            </td>
+        </tr>
+    """
+
+def generate_current_networth_html_table(report_data, invest_capital_from_house_sale, sale_of_house_investment, investment_projected_growth):
     """
     Generate HTML content for the current net worth section of the financial report.
-
-    Args:
-    - report_data (dict): Dictionary containing all necessary data for calculating the current net worth section.
-
-    Returns:
-    str: HTML content for the current net worth section.
     """
     house_info = report_data["house_info"]
     config_data = report_data["config_data"]
+    years = config_data["years"]
     calculated_data = report_data["calculated_data"]
+    interest_rate = config_data["interest_rate"]
 
+    investment_balance = config_data.get('investment_balance', 0)
+    retirement_principal = config_data.get('retirement_principal', 0)
+    combined_networth = calculated_data.get("combined_networth", 0)
+    house_net_worth = house_info.get("house_net_worth", 0)
+    total_retirement_assets = invest_capital_from_house_sale + investment_balance + retirement_principal
+
+    safe_withdrawal_amount = 0.04 * total_retirement_assets
+    # seven_percent_networth = 0.07 * combined_networth
+
+    # Calculate future values
+    oneyear_house_value = house_net_worth * (0.035) 
+    oneyear_stock_value = total_retirement_assets * (interest_rate) 
+
+    # Combined future value
+    oneyear_growth = oneyear_house_value + oneyear_stock_value
+
+    # HTML table rows
+    rows = [
+        generate_net_worth_row(
+            "House Net Worth",
+            house_net_worth,
+            "Calculated by (House Value - Remaining Mortgage Principal)"
+        ),
+        generate_net_worth_row(
+            "House Re-Investment",
+            invest_capital_from_house_sale,
+            f"This is the capital that will be reinvested after the house is sold.<br>Projected Future Value: {format_currency(sale_of_house_investment)}"
+        ),
+        generate_net_worth_row(
+            "Investment Balance",
+            investment_balance,
+            f"Projected value if not used to cover expenses.<br>Projected Future Value: {format_currency(investment_projected_growth)}"
+        ),
+        generate_net_worth_row("Retirement Balance", retirement_principal),
+        generate_net_worth_row("Net Worth", combined_networth),
+        generate_net_worth_row(
+            "Total Investment Assets",
+            total_retirement_assets,
+            "The total investment assets include the sum of your investment balance, retirement principal, and any capital reinvested from the house sale."
+        ),
+        generate_net_worth_row(
+            "Projected One-Year Growth",
+            oneyear_growth,
+            f"A {interest_rate} return on net worth is often used as a hypothetical annual growth rate for investments in the stock market. <br>0.035 represents the growth of the house over time."
+        ),
+        generate_net_worth_row(
+            "4% Safe Withdrawal Rate",
+            safe_withdrawal_amount,
+            "The 4% rule suggests that you can safely withdraw 4% of your total retirement savings annually without running out of money over a 30-year retirement period.<br>This amount adjusts for inflation each year."
+        )
+    ]
+
+    # Combine all rows into the table
     html_content = f"""
     <div class='table-container'>
-    <table>
-        <tr>
-        <th>House Net Worth</th>
-        <td>
-            <div class="net-worth-field">
-                <span class="net-worth">{format_currency(house_info.get("house_net_worth", 0))}</span>
-                <span class="tooltip">
-                    <span class="tooltip-icon" aria-label="Tooltip available" role="tooltip">ℹ️</span>
-                    <span class="tooltip-text">
-                        Calculated by (House Value - Remaining Mortgage Principal)
-                    </span>
-                </span>
-            </div>
-        </td>
-        </tr>
-
-        <tr>
-        <th>House Re-Investment</th>
-        <td>
-            <div class="net-worth-field">
-                <span class="net-worth">{format_currency(invest_capital_from_house_sale)}</span>
-                <span class="tooltip">
-                    <span class="tooltip-icon" aria-label="Tooltip available" role="tooltip">ℹ️</span>
-                    <span class="tooltip-text">
-                        This is the capital that will be reinvested after the house is sold.
-                        <br>Projected Future Value: {format_currency(sale_of_house_investment)}
-                    </span>
-                </span>
-            </div>
-        </td>
-        </tr>
-
-        <tr><th>Investment Balance</th>
-        <td>
-            <div class="net-worth-field"> 
-                <span class="net-worth">{format_currency(config_data.get('investment_balance', 0))}</span>
-                <span class="tooltip">
-                    <span class="tooltip-icon" aria-label="Tooltip available" role="tooltip">ℹ️</span>
-                    <span class="tooltip-text">
-                        Projected value if not used to cover expenses.
-                        <br>Projected Future Value: {format_currency(Investment_projected_growth)}
-                    </span>
-                </span>
-            </div>
-            </td></tr>
-        <tr><th>Retirement Balance</th><td>{format_currency(config_data.get('retirement_principal', 0))}</td></tr>
-        <tr><th>Combined Net worth</th><td>{format_currency(calculated_data.get("combined_networth", 0))}</td></tr>
-    </table>
+        <table>
+            {''.join(rows)}
+        </table>
     </div>
     """
     return html_content
-
 
 
 def generate_income_expenses_html(section_title, calculated_data):
@@ -617,6 +698,120 @@ def generate_html(report_data):
         else:
             formatted_data += f"{safe_int_conversion(data)}"
         return formatted_data
+
+    investment_principal = report_data["calculated_data"].get("balance_with_expenses", 0)
+    house_capital_investment = report_data["house_info"].get("house_capital_investment", 0)
+
+    # Ensure both are floats or ints and handle None cases if necessary
+    if investment_principal is None:
+        investment_principal = 0
+    if house_capital_investment is None:
+        house_capital_investment = 0
+
+    # Conditional check for viability
+    viable_status = "Viable" if (investment_principal + house_capital_investment) > 50000 else "Not Viable"
+
+    # Generate the scenario filename (make sure to format the name correctly)
+    scenario_full_name = report_data["calculated_data"].get("scenario_name", "index")
+    scenario_filename = f"scenario_{scenario_full_name}.html"
+
+    # Debugging the final result
+    html_content = f"""
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Financial Report</title>
+        <link rel="stylesheet" href="../static/css/styles.css">
+        <script src="../static/js/toggleVisibility.js"></script>
+    </head>
+    <body>
+        <h1>Financial Report</h1>
+        <div class='header-container'>
+            <div class='header'>
+                <h2 id='detail-title'>Detail</h2>
+                <div id='content' class='section-content'>
+                    <p><strong>Status:</strong> {viable_status}</p>
+                    <p><a href="{scenario_filename}">View Full Scenario</a></p>
+    """
+    
+    future_value_html = generate_future_value_html_table(report_data)
+    formatted_future_title = format_key("Future Value")
+    html_content += f"<button type='button' class='collapsible' onclick='toggleCollapsible(\"future-value\", \"future-value-content\")'>{escape(formatted_future_title)}</button>"
+    html_content += f"<div id='future-value-content' class='content'>{future_value_html}</div>"
+
+    annual_income_surplus_html = generate_section_html("Annual Income Surplus", report_data["calculated_data"]["annual_surplus"], format_currency)
+    annual_income_surplus_title = format_key("Annual Income Surplus")
+    html_content += f"<button type='button' class='collapsible' onclick='toggleCollapsible(\"annual_income_surplus\", \"annual_income_surplus-content\")'>{escape(annual_income_surplus_title)}</button>"
+    html_content += f"<div id='annual_income_surplus-content' class='content'>{annual_income_surplus_html}</div>"
+
+    html_content += generate_configuration_data_html("Configuration Data", report_data['config_data'])
+    html_content += generate_income_expenses_html("Income and Expenses", report_data['calculated_data'])
+    html_content += generate_current_networth_html(report_data)
+
+    school_expense_coverage_html = generate_school_expense_coverage_html(report_data["calculated_data"]["school_expense_coverage"])
+    html_content += school_expense_coverage_html
+
+    headers = ["Attribute", "Value"]
+    logging.info("Generate house info HTML")
+    
+    if "house_info" in report_data:
+        house_info_html = generate_house_section_html(
+            None,
+            report_data["house_info"],
+            custom_formatter=None,
+            headers=headers
+        )
+    else:
+        logging.info('"house_info" is NOT in report_data')
+        house_info_html = "<p>No house information available.</p>"
+
+    formatted_house_info_title = format_key("House Info")
+    html_content += f"<button type='button' class='collapsible' onclick='toggleCollapsible(\"house-info\", \"house-info-content\")'>{formatted_house_info_title}</button>"
+    html_content += f"<div id='house-info-content' class='content'>{house_info_html}</div>"
+
+    current_house_html = generate_current_house_html(report_data["current_house"])
+    html_content += current_house_html
+
+    if "new_house" in report_data:
+       logging.info('new_house FOUND in report_data')
+       new_house_html = generate_new_house_html(report_data["new_house"])
+       html_content += new_house_html
+    else:
+        logging.info('new_house is NOT in report_data')
+        html_content += "<p>new_house is NOT available.</p>"
+    
+    html_content += """
+                    </div>
+            </div>
+            </div> <!-- End of header-container -->
+    </body>
+    </html>
+    """
+    return html_content
+
+
+def _generate_html(report_data):
+    excluded_sections = ["current_house", "school_expense_coverage", "Yearly Income", "house_info"]
+
+    def format_data(data):
+        formatted_data = ""
+        if isinstance(data, dict):
+            formatted_data += "<ul>"
+            for key, value in data.items():
+                if key not in excluded_sections:
+                    formatted_key = format_key(key)
+                    formatted_data += f"<li><strong>{escape(formatted_key)}:</strong> <span class='{key}-data'>{safe_int_conversion(format_data(value))}</span></li>"
+            formatted_data += "</ul>"
+        elif isinstance(data, list):
+            formatted_data += "<ul>"
+            for item in data:
+                formatted_data += f"<li>{escape(str(item))}</li>"
+            formatted_data += "</ul>"
+        else:
+            formatted_data += f"{safe_int_conversion(data)}"
+        return formatted_data
  
     investment_principal = report_data["calculated_data"].get("balance_with_expenses", 0)
     house_capital_investment = report_data["house_info"].get("house_capital_investment", 0)
@@ -658,10 +853,10 @@ def generate_html(report_data):
     html_content += f"<button type='button' class='collapsible' onclick='toggleCollapsible(\"future-value\", \"future-value-content\")'>{escape(formatted_future_title)}</button>"
     html_content += f"<div id='future-value-content' class='content'>{future_value_html}</div>"
 
-    yearly_income_surplus_html = generate_section_html("Yearly Income Surplus", report_data["calculated_data"]["calculated_yearly_gain"], format_currency)
-    yearly_income_surplus_title = format_key("Yearly Income Surplus")
-    html_content += f"<button type='button' class='collapsible' onclick='toggleCollapsible(\"yearly_income_surplus\", \"yearly_income_surplus-content\")'>{escape(yearly_income_surplus_title)}</button>"
-    html_content += f"<div id='yearly_income_surplus-content' class='content'>{yearly_income_surplus_html}</div>"
+    annual_income_surplus_html = generate_section_html("Annual Income Surplus", report_data["calculated_data"]["annual_surplus"], format_currency)
+    annual_income_surplus_title = format_key("Annual Income Surplus")
+    html_content += f"<button type='button' class='collapsible' onclick='toggleCollapsible(\"annual_income_surplus\", \"annual_income_surplus-content\")'>{escape(annual_income_surplus_title)}</button>"
+    html_content += f"<div id='annual_income_surplus-content' class='content'>{annual_income_surplus_html}</div>"
 
     html_content += generate_configuration_data_html("Configuration Data", report_data['config_data'])
     html_content += generate_income_expenses_html("Income and Expenses", report_data['calculated_data'])
@@ -698,7 +893,7 @@ def generate_html(report_data):
     else:
         logging.info('new_house is NOT in report_data')
         html_content += "<p>new_house is NOT available.</p>"
-
+    
     html_content += """
                     </div>
             </div>
@@ -709,6 +904,17 @@ def generate_html(report_data):
     return html_content
 
 def generate_summary_report_html(summary_report_data):
+    """
+    Generates an HTML report for financial scenario summaries.
+
+    Args:
+        summary_report_data (dict): Dictionary containing the scenario data.
+
+    Returns:
+        str: HTML content as a string.
+    """
+    
+    # HTML structure start
     html_content = """
     <!DOCTYPE html>
     <html lang="en">
@@ -721,83 +927,92 @@ def generate_summary_report_html(summary_report_data):
     </head>
     <body class="print-columns">
       <h1>Financial Scenario Summary Report</h1>
-      <div class='container'> <!-- Main container for layout -->
-        <!-- Navigation Section -->
+      <div class='container'> <!-- Main container for layout with flexbox -->
         <!-- INSERT NAVIGATION HERE -->
-        <!-- Main Content Section -->
-        <main class='main-content'>
     """
-
-    # Loop through summary data to generate content
-    for scenario_name, scenario_data in summary_report_data.items():
+    
+    # Function to create a scenario section
+    def create_scenario_section(scenario_name, scenario_data):
+        """Generates HTML for a single scenario section."""
         scenario_id = scenario_name.replace(" ", "-").lower()
-        investment_principal = scenario_data.get("investment_principal", 0)
-        house_capital_investment = scenario_data.get("house_capital_investment", 0)
-
-        # Ensure both are floats or ints and handle None cases if necessary
-        if investment_principal is None:
-            investment_principal = 0
-        if house_capital_investment is None:
-            house_capital_investment = 0
-
-        # Check if the sum is greater than 50000
-        viable_status = (investment_principal + house_capital_investment) > 50000
         assumption_description = scenario_data.get("assumption_description", "")
         description_detail = scenario_data.get("description_detail", "")
+        investment_principal = scenario_data.get("investment_principal", 0) or 0
+        house_capital_investment = scenario_data.get("house_capital_investment", 0) or 0
 
-        # Main Content Section for each scenario
-        html_content += f"""
-            <div id='{scenario_id}-main' class='scenario-section'>
-              <div class='header'>
-                <h2>{escape(assumption_description)}</h2>
-                <h4 class="scenario-status { "viable" if viable_status else 'not-viable' }">
-                  { "Viable" if viable_status else "Not Viable" }
-                </h4>
+        # Determine viability based on investment and house capital
+        viable_status = (investment_principal + house_capital_investment) > 50000
+        viability_class = "viable" if viable_status else "not-viable"
+        viability_label = "Viable" if viable_status else "Not Viable"
+        
+        # Scenario section template with links to scenario and detail files
+        return f"""
+        <main class='main-content' id='{scenario_id}-main'>
+          <div class='header'>
+            <h2>{escape(assumption_description)}</h2>
+            <h4 class="scenario-status {viability_class}">
+              {viability_label}
+            </h4>
+          </div>
+          <div class='section-content'>
+            <div class='table-container'>
+              <div>
+                {scenario_data["scenario_summary_info"]}
+                <p>{escape(description_detail)}</p>
               </div>
-              <div class='section-content'>
-                <div class='table-container'>
-                  <div>
-                    {scenario_data["scenario_summary_info"]}
-                    <p>{escape(description_detail)}</p>
-                  </div>
-                  <div>
-                    <h3>Current Value</h3>
-                    {scenario_data["current_value"]}
-                  </div>
-                  <div>
-                    <h3>Future Value</h3>
-                    {scenario_data["future_value"]}
-                  </div>
-                  <div>
-                    {scenario_data["yearly_net_html"]}
-                    {scenario_data["total_after_fees_html"]}
-                  </div>
-                </div>
-               </div>
+              <div>
+                <h3>Current Value</h3>
+                {scenario_data["current_value"]}
+              </div>
+              <div>
+                <h3>Future Value</h3>
+                {scenario_data["future_value"]}
+              </div>
+              <div>
+                {scenario_data["yearly_net_html"]}
+                {scenario_data["total_after_fees_html"]}
+              </div>
             </div>
-        </main> <!-- End of main-content -->
+          </div>
+        </main>
         """
 
-        # Detailed Information Section (under each scenario)
-        html_content += f"""
-            <div id='{scenario_id}-detail' class='detailed-info'>
-                <h3>Detailed Information</h3>
-                <div>{scenario_data["assumptions_html"]}</div>
-                <div>{scenario_data["monthly_expenses_html"]}</div>
-                <div>{scenario_data["expenses_not_factored_html"]}</div>
-                <div>{scenario_data["school_expenses_table_html"]}</div>
-                <div>{scenario_data["investment_table_html"]}</div>
-                <div>{scenario_data["retirement_table_html"]}</div>
-                <div>{scenario_data["current_house_html"]}</div>
-                <div>{scenario_data["new_house_html"]}</div>
+    # Function to create detailed information section
+    def create_detailed_info_section(scenario_name, scenario_data):
+        """Generates HTML for detailed information section."""
+        scenario_id = scenario_name.replace(" ", "-").lower()
+        detail_filename = f"detail_{scenario_name}.html"
+        return f"""
+        <aside class='detailed-info' id='{scenario_id}-detail'>
+            <h3>Detailed Information</h3>
+            <div>{scenario_data["assumptions_html"]}</div>
+            <div>{scenario_data["monthly_expenses_html"]}</div>
+            <div>{scenario_data["expenses_not_factored_html"]}</div>
+            <div>{scenario_data["school_expenses_table_html"]}</div>
+            <div>{scenario_data["investment_table_html"]}</div>
+            <div>{scenario_data["retirement_table_html"]}</div>
+            <div>{scenario_data["current_house_html"]}</div>
+            <div>{scenario_data["new_house_html"]}</div>
+            <div>
+                <a href="{detail_filename}">View Detailed Information</a>
             </div>
+        </aside>
         """
 
+    # Loop through each scenario to generate the HTML content
+    for scenario_name, scenario_data in summary_report_data.items():
+        html_content += "<div class='scenario-wrapper'>"  # Wrap scenario and detail together
+        html_content += create_scenario_section(scenario_name, scenario_data)
+        html_content += create_detailed_info_section(scenario_name, scenario_data)
+        html_content += "</div>"  # End of wrapper
+
+    # End the HTML structure
     html_content += """
         </div> <!-- End of container -->
     </body>
     </html>
     """
+    
     return html_content
 
 
@@ -1077,14 +1292,14 @@ location_lookup = {
 }
 
 ownership_type_lookup = {
-    'own': '🏠 Own House',
+    'own': 'Own House',
     'rent': 'Rent',
 }
 
 school_type_lookup = {
-    'public': '🎓 Public HS',
-    'private': '🎓 Private HS',
-    'pripub': '🎓 Public & Private HS',
+    'public': 'Public HS',
+    'private': 'Private HS',
+    'pripub': 'Public-Private HS',
 }
 
 def extract_attributes_from_filename(filename):
@@ -1118,7 +1333,7 @@ def extract_attributes_from_filename(filename):
     report_name_suffix = f" ({extra_content})" if extra_content else ""
     
     # Combine for the simplified name
-    simplified_name = f"{friendly_ownership} {friendly_school}".strip()
+    simplified_name = f"{friendly_ownership} & {friendly_school}".strip()
 
     # Add the report name suffix to the simplified name if it exists
     if report_name_suffix:
@@ -1140,8 +1355,8 @@ def process_html_file(file_path):
         print(f"Skipping file {file_path}: {e}")
         return None
 
-def _generate_navigation(toc_content):
-    """Generate structured navigation HTML with collapsible sections."""
+def generate_navigation(toc_content):
+    """Generate structured navigation HTML with collapsible sections and dynamic parent names in work statuses."""
     html_content = "<nav class='site-navigation'>\n"
     
     # Add a div container for flexbox layout for buttons
@@ -1172,33 +1387,52 @@ def _generate_navigation(toc_content):
             html_content += f"<ul id='{section_id}' class='viability-list collapsible-content nav-collapsible-content' style='max-height:0; overflow:hidden;'>\n"  # Hidden by default
 
         for location, reports in toc_content[viability].items():
+            # Adding class for location items
             html_content += f"  <li class='location-item'>{location_lookup.get(location, location).title()}\n"
-            html_content += "    <ul class='work-status-list'>\n"
+            html_content += "    <ul class='work-status-list'>\n"  # Work status list with its class
 
+            # Organize reports by work status
             work_status_dict = {}
-            for file, simplified_name, _, work_status, report_name_suffix in reports:
-                if work_status not in work_status_dict:
-                    work_status_dict[work_status] = []
-                work_status_dict[work_status].append((file, simplified_name))
+            for file, simplified_name, full_names, work_status, report_name_suffix in reports:
+                parent1_name, parent2_name = full_names  # Extract the parent names
 
-            for work_status, items in work_status_dict.items():
-                friendly_status = work_status_lookup.get(work_status, work_status).title()
+                # Dynamically create the friendly status based on the work status
+                if work_status == "retired-retired":
+                    friendly_status = "Both Retired"
+                elif work_status == "work-work":
+                    friendly_status = "Both Working"
+                elif work_status == "retired-work":
+                    friendly_status = f"{parent1_name} Retired & {parent2_name} Working"
+                elif work_status == "work-retired":
+                    friendly_status = f"{parent1_name} Working & {parent2_name} Retired"
+                else:
+                    friendly_status = work_status  # Fallback if work status isn't found
+
+                if friendly_status not in work_status_dict:
+                    work_status_dict[friendly_status] = []
+                work_status_dict[friendly_status].append((file, simplified_name))
+
+            for friendly_status, items in work_status_dict.items():
+                # Add work-status-item and report-list classes
                 html_content += f"      <li class='work-status-item'>{friendly_status}<ul class='report-list'>\n"
 
                 for file, simplified_name in items:
+                    # Add report-item class to list item and maintain anchor for the report
                     html_content += f"        <li class='report-item'><a href='{file}'>{simplified_name}</a></li>\n"
 
-                html_content += "      </ul></li>\n"
+                html_content += "      </ul></li>\n"  # Close work status item
 
-            html_content += "    </ul>\n"
-            html_content += "  </li>\n"
+            html_content += "    </ul>\n"  # Close work status list
+            html_content += "  </li>\n"  # Close location item
 
         html_content += "</ul>\n"  # Close collapsible section
 
     html_content += "</nav>\n"
     return html_content
 
-def generate_navigation(toc_content):
+
+
+def _generate_navigation(toc_content):
     """Generate structured navigation HTML with collapsible sections."""
     html_content = "<nav class='site-navigation'>\n"
     
@@ -1261,60 +1495,6 @@ def generate_navigation(toc_content):
     return html_content
 
 
-def generate_navigation_old(toc_content):
-    """Generate structured navigation HTML with collapsible sections."""
-    html_content = "<nav class='site-navigation'>\n"
-    
-    # Add a div container for flexbox layout for buttons
-    html_content += "<div class='nav-buttons'>\n"
-
-    for viability in toc_content:
-        formatted_viability = viability.replace('-', ' ').title()
-        section_id = f"{viability}-content"
-        button_id = f"{viability}-button"
-
-        # Add collapsible button inside the nav-buttons div for flexbox layout
-        html_content += f"<button id='{button_id}' type='button' class='collapsible nav-collapsible' onclick='toggleCollapsible(\"{button_id}\", \"{section_id}\", true)'>{formatted_viability}</button>\n"
-    
-    # Close the div for buttons
-    html_content += "</div>\n"
-
-    # Now add the content sections that will be collapsible
-    for viability in toc_content:
-        section_id = f"{viability}-content"
-
-        # Add the collapsible content section (hidden by default)
-        html_content += f"<ul id='{section_id}' class='viability-list collapsible-content nav-collapsible-content' >\n" 
-
-        for location, reports in toc_content[viability].items():
-            html_content += f"  <li class='location-item'>{location_lookup.get(location, location).title()}\n"
-            html_content += "    <ul class='work-status-list'>\n"
-
-            work_status_dict = {}
-            for file, simplified_name, _, work_status, report_name_suffix in reports:
-                if work_status not in work_status_dict:
-                    work_status_dict[work_status] = []
-                work_status_dict[work_status].append((file, simplified_name))
-
-            for work_status, items in work_status_dict.items():
-                friendly_status = work_status_lookup.get(work_status, work_status).title()
-                html_content += f"      <li class='work-status-item'>{friendly_status}<ul class='report-list'>\n"
-
-                for file, simplified_name in items:
-                    html_content += f"        <li class='report-item'><a href='{file}'>{simplified_name}</a></li>\n"
-
-                html_content += "      </ul></li>\n"
-
-            html_content += "    </ul>\n"
-            html_content += "  </li>\n"
-
-        html_content += "</ul>\n"  # Close collapsible section
-
-    html_content += "</nav>\n"
-    return html_content
-
-
-
 def parse_filename(filename): 
     """Parse the filename to generate a simplified and user-friendly title."""
     
@@ -1373,8 +1553,45 @@ def get_html_files(html_dir):
     all_files = os.listdir(html_dir)
     return [f for f in all_files if f.endswith('.html') and f.startswith('scenario')]
 
-
 def organize_content(html_files, html_dir):
+    """Organize content from HTML files into a structured format."""
+    # Initialize with 'viable', 'not-viable', and 'all'
+    toc_content = {"viable": {}, "not-viable": {}, "all": {}}
+
+    for file in html_files:
+        file_path = os.path.join(html_dir, file)
+        print(f"Processing file: {file_path}")
+
+        result = process_html_file(file_path)
+        if result is None:
+            continue
+
+        html_content, location, full_names, work_status, simplified_name, report_name_suffix = result
+
+        # Check viability status
+        viability = check_viability_status(html_content)
+
+        # Handle unexpected viability statuses
+        if viability not in toc_content:
+            logging.warning(f"Unexpected viability status '{viability}' for file {file_path}. Defaulting to 'all'.")
+            viability = 'all'  # Default to 'all' if the status is unrecognized
+
+        # Initialize location in toc_content if it doesn't exist
+        if location not in toc_content[viability]:
+            toc_content[viability][location] = []
+
+        # Append the file details to the recognized viability category
+        toc_content[viability][location].append((file, simplified_name, full_names, work_status, report_name_suffix))
+
+        # Also append the file details to 'all' as fallback
+        if location not in toc_content['all']:
+            toc_content['all'][location] = []
+        toc_content['all'][location].append((file, simplified_name, full_names, work_status, report_name_suffix))
+
+    return toc_content
+
+
+def _organize_content(html_files, html_dir):
     """Organize content from HTML files into a structured format."""
     # Initialize with 'viable', 'not-viable', and 'unknown'
     toc_content = {"viable": {}, "not-viable": {}, "unknown": {}}
