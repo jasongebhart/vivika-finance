@@ -181,8 +181,13 @@ def generate_future_value_html_table(report_data):
     house_capital_investment = report_data["house_info"]["house_capital_investment"]
     future_retirement_value_contrib = report_data["calculated_data"]["future_retirement_value_contrib"]
     combined_networth_future = report_data["calculated_data"]["combined_networth_future"]
+    config_data = report_data["config_data"]
 
     interest_rate = report_data["config_data"]["interest_rate"]
+    interest_rate_percentage = f"{interest_rate:.2%}"
+    annual_growth_rate = config_data.get("house", {}).get("annual_growth_rate")
+    annual_growth_rate_percentage = f"{annual_growth_rate:.2%}"
+  
     # Calculate total retirement assets
     total_retirement_assets = future_retirement_value_contrib + balance_with_expenses + total_employee_stockplan
 
@@ -231,7 +236,7 @@ def generate_future_value_html_table(report_data):
         generate_net_worth_row(
             "Projected One-Year Growth",
             oneyear_growth,
-            f"A {interest_rate} return on net worth is often used as a hypothetical annual growth rate for investments in the stock market. <br>0.035 represents the growth of the house over time."
+            f"A {interest_rate_percentage} return on net worth is often used as a hypothetical annual growth rate for investments in the stock market. <br>{annual_growth_rate_percentage} represents the growth of the house over time."
         ),
         generate_net_worth_row(
             "4% Safe Withdrawal Rate",
@@ -283,6 +288,10 @@ def generate_current_networth_html_table(report_data, invest_capital_from_house_
     years = config_data["years"]
     calculated_data = report_data["calculated_data"]
     interest_rate = config_data["interest_rate"]
+    
+    interest_rate_percentage = f"{interest_rate:.2%}"
+    annual_growth_rate = config_data.get("house", {}).get("annual_growth_rate")
+    annual_growth_rate_percentage = f"{annual_growth_rate:.2%}"
 
     investment_balance = config_data.get('investment_balance', 0)
     retirement_principal = config_data.get('retirement_principal', 0)
@@ -294,7 +303,7 @@ def generate_current_networth_html_table(report_data, invest_capital_from_house_
     # seven_percent_networth = 0.07 * combined_networth
 
     # Calculate future values
-    oneyear_house_value = house_net_worth * (0.035) 
+    oneyear_house_value = house_net_worth * annual_growth_rate 
     oneyear_stock_value = total_retirement_assets * (interest_rate) 
 
     # Combined future value
@@ -322,12 +331,12 @@ def generate_current_networth_html_table(report_data, invest_capital_from_house_
         generate_net_worth_row(
             "Total Investment Assets",
             total_retirement_assets,
-            "The total investment assets include the sum of your investment balance, retirement principal, and any capital reinvested from the house sale."
+            "The total investment assets include the sum of your investment balance, retirement principal, and any capital reinvested from the house sale. House net worth is not included."
         ),
         generate_net_worth_row(
             "Projected One-Year Growth",
             oneyear_growth,
-            f"A {interest_rate} return on net worth is often used as a hypothetical annual growth rate for investments in the stock market. <br>0.035 represents the growth of the house over time."
+            f"A {interest_rate_percentage} return on net worth is often used as a hypothetical annual growth rate for investments in the stock market. <br>{annual_growth_rate_percentage} represents the growth of the house over time."
         ),
         generate_net_worth_row(
             "4% Safe Withdrawal Rate",
@@ -1265,9 +1274,8 @@ def check_viability_status(html_content):
         elif 'not-viable' in classes:
             return 'not-viable'
     
-    # Return 'unknown' if no status element is found or no known classes are present
+    logging.warning("No recognized status class found. Returning 'unknown'.")
     return 'unknown'
-
 
 
 # Define dictionaries for name and work status lookups
@@ -1560,36 +1568,40 @@ def organize_content(html_files, html_dir):
 
     for file in html_files:
         file_path = os.path.join(html_dir, file)
-        print(f"Processing file: {file_path}")
+        logging.info(f"Processing file: {file_path}")
 
-        result = process_html_file(file_path)
-        if result is None:
-            continue
+        try:
+            result = process_html_file(file_path)
+            if result is None:
+                logging.warning(f"No result returned for file: {file_path}. Skipping.")
+                continue
 
-        html_content, location, full_names, work_status, simplified_name, report_name_suffix = result
+            html_content, location, full_names, work_status, simplified_name, report_name_suffix = result
 
-        # Check viability status
-        viability = check_viability_status(html_content)
+            # Check viability status
+            viability = check_viability_status(html_content)
 
-        # Handle unexpected viability statuses
-        if viability not in toc_content:
-            logging.warning(f"Unexpected viability status '{viability}' for file {file_path}. Defaulting to 'all'.")
-            viability = 'all'  # Default to 'all' if the status is unrecognized
+            # Handle unexpected viability statuses
+            if viability not in toc_content:
+                logging.warning(f"Unexpected viability status '{viability}' for file {file_path}. Defaulting to 'all'.")
+                viability = 'all'  # Default to 'all' if the status is unrecognized
 
-        # Initialize location in toc_content if it doesn't exist
-        if location not in toc_content[viability]:
-            toc_content[viability][location] = []
+            # Initialize location in toc_content if it doesn't exist
+            if location not in toc_content[viability]:
+                toc_content[viability][location] = []
 
-        # Append the file details to the recognized viability category
-        toc_content[viability][location].append((file, simplified_name, full_names, work_status, report_name_suffix))
+            # Append the file details to the recognized viability category
+            toc_content[viability][location].append((file, simplified_name, full_names, work_status, report_name_suffix))
 
-        # Also append the file details to 'all' as fallback
-        if location not in toc_content['all']:
-            toc_content['all'][location] = []
-        toc_content['all'][location].append((file, simplified_name, full_names, work_status, report_name_suffix))
+            # Also append the file details to 'all' as fallback
+            if location not in toc_content['all']:
+                toc_content['all'][location] = []
+            toc_content['all'][location].append((file, simplified_name, full_names, work_status, report_name_suffix))
+
+        except Exception as e:
+            logging.error(f"Error processing file {file_path}: {str(e)}")
 
     return toc_content
-
 
 def _organize_content(html_files, html_dir):
     """Organize content from HTML files into a structured format."""

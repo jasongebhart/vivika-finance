@@ -36,3 +36,4 @@ env/
 # Other
 src/tools.py
 src/test.py
+src/getFinances_backup.py
