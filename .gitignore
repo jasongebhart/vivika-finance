@@ -37,3 +37,7 @@ env/
 src/tools.py
 src/test.py
 src/getFinances_backup.py
+archive/gen_report_in_parallel.py
+archive/getFinances_backup.py
+archive/getFinances_old.py
+archive/run_reports.py

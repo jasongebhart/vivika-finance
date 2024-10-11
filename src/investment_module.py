@@ -10,26 +10,19 @@ from typing import Tuple, Union, List, Dict, Optional
 
 CAPITAL_GAIN_EXCLUSION = 500000
 
-def create_log_directory():
-    log_dir = Path(__file__).parent.parent / "logs"
-    log_dir.mkdir(parents=True, exist_ok=True)
-    return log_dir
-
-def setup_logging(log_dir="logs", log_file="app.log", log_level=logging.INFO):
+def setup_logging(main_log_file=None, scenario_log_file=None, log_dir="logs", log_level=logging.INFO):
     """
     Sets up logging for both console and file handlers.
 
+    :param main_log_file: Name of the main log file (default is None).
+    :param scenario_log_file: Name of the scenario-specific log file (default is None).
     :param log_dir: Directory where logs are stored.
-    :param log_file: Name of the log file.
     :param log_level: Logging level (default INFO).
     """
     Path(log_dir).mkdir(parents=True, exist_ok=True)
-    log_path = Path(log_dir) / log_file
-
+    
     logger = logging.getLogger()
     logger.setLevel(log_level)
-
-    # Create a single formatter to be reused for both console and file handlers
     log_formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(funcName)s - %(message)s')
 
     # Console Handler
@@ -38,22 +31,43 @@ def setup_logging(log_dir="logs", log_file="app.log", log_level=logging.INFO):
     console_handler.setFormatter(log_formatter)
     logger.addHandler(console_handler)
 
-    # File Handler
-    file_handler = logging.FileHandler(log_path, mode='a')
-    file_handler.setLevel(log_level)
-    file_handler.setFormatter(log_formatter)  # Reusing the same formatter
-    logger.addHandler(file_handler)
+    # Main Log File Handler (append mode, only if provided)
+    if main_log_file:
+        main_log_path = Path(log_dir) / main_log_file
+        main_file_handler = logging.FileHandler(main_log_path, mode='a')
+        main_file_handler.setLevel(log_level)
+        main_file_handler.setFormatter(log_formatter)
+        logger.addHandler(main_file_handler)
+
+    # Scenario Log File Handler (overwrite mode, only if provided)
+    if scenario_log_file:
+        scenario_log_path = Path(log_dir) / scenario_log_file
+        scenario_file_handler = logging.FileHandler(scenario_log_path, mode='w')
+        scenario_file_handler.setLevel(log_level)
+        scenario_file_handler.setFormatter(log_formatter)
+        logger.addHandler(scenario_file_handler)
 
     logger.info("Logging is set up.")
 
-    
 def handle_arguments():
     try:
         args = parse_arguments()
         log_data(vars(args), title="Arguments Received")
         return args
+
+    # Handle argument-related errors
+    except argparse.ArgumentError as e:
+        logging.error(f"Argument parsing error: {e}")
+        sys.exit(1)
+    
+    # Handle incorrect types or values in the arguments
+    except ValueError as e:
+        logging.error(f"Invalid argument value: {e}")
+        sys.exit(1)
+    
+    # Handle any other potential issues (keeping a catch-all for unforeseen exceptions)
     except Exception as e:
-        logging.exception("Error parsing arguments")
+        logging.exception(f"An unexpected error occurred: {e}")
         sys.exit(1)
 
 
@@ -69,12 +83,24 @@ def log_data(data: Union[Dict, List], title: Optional[str] = None, format_as_cur
     if title:
         logging.info(f"--- {title} ---")
 
-    if format_as_currency:
-        # Assuming format_currency is a utility function to format numbers
-        formatted_data = {k: format_currency(v) if isinstance(v, (int, float)) else v for k, v in data.items()}
-        logging.info(formatted_data)
+    if isinstance(data, dict):
+        if format_as_currency:
+            # Format each value as currency if it is a number
+            formatted_data = {k: format_currency(v) if isinstance(v, (int, float)) else v for k, v in data.items()}
+            logging.info(formatted_data)
+        else:
+            logging.info(data)
+
+    elif isinstance(data, list):
+        # If data is a list, log each item
+        if format_as_currency:
+            formatted_list = [format_currency(item) if isinstance(item, (int, float)) else item for item in data]
+            logging.info(formatted_list)
+        else:
+            logging.info(data)
+
     else:
-        logging.info(data)
+        logging.warning("Unsupported data type provided to log_data.")
 
 def parse_arguments():
     """
@@ -279,7 +305,9 @@ def calculate_total_school_expense(config_data):
 
     return total_school_expense, total_highschool_expense, total_college_expense
 
-
+def unused_function():
+     print("This function is never called.")
+     
 def calculate_balance(balance, interest_rate, years, annual_surplus=0, gains=[], expenses=[], yearly_expense=0):
     """
     Calculates the ending balance with compounding interest, considering yearly
@@ -943,49 +971,6 @@ def calculate_combined_net_worth(config_data, house_info):
     return combined_net_worth
 
 
-def _calculate_combined_net_worth(config_data, house_net_worth, house_capital_investment=0):
-    """
-    Calculate the combined net worth, including the house net worth and any capital reinvested from the house sale.
-
-    Args:
-        config_data (dict): Configuration data for the financial scenario.
-        house_net_worth (float): Net worth of the house.
-        house_capital_investment (float): Capital reinvested from the sale of the house. Default is 0 if no sale occurred.
-
-    Returns:
-        float: Combined net worth.
-    """
-    logging.debug("Entering <function calculate_combined_net_worth>")
-
-    # Adding house_net_worth and house_capital_investment to the total net worth calculation
-    combined_net_worth = (
-        config_data['investment_balance'] + 
-        config_data['retirement_principal'] + 
-        house_net_worth + 
-        house_capital_investment  # This reflects any reinvested capital from the house sale
-    )
-
-    logging.info(f"{'Combined Net Worth:':<31} {format_currency(combined_net_worth)}")
-    return combined_net_worth
-
-
-def _calculate_combined_net_worth(config_data, house_net_worth):
-    """
-    Calculate the combined net worth.
-
-    Args:
-        config_data (dict): Configuration data for the financial scenario.
-        house_net_worth (float): Net worth of the house.
-
-    Returns:
-        float: Combined net worth.
-    """
-    logging.debug("Entering <function ")
-
-    combined_net_worth = config_data['investment_balance'] + config_data['retirement_principal'] + house_net_worth
-    logging.info(f"{'Net Worth:':<31} {format_currency(combined_net_worth)}")
-    return combined_net_worth
-
 def calculate_financial_data(config_data, tax_rate):
     logging.debug("Entering <function ")
     yearly_data = calculate_yearly_income(config_data, tax_rate)
@@ -1075,35 +1060,6 @@ def calculate_income_expenses(config_data, tax_rate):
 
     return calculated_data
 
-
-
-def _calculate_income_expenses(config_data, tax_rate):
-    logging.debug("Entering <function ")
-    yearly_data, total_monthly_expenses, monthly_expenses_breakdown = calculate_financial_data(config_data, tax_rate)
-    expenses_not_factored_in_report = calculate_expenses_not_factored_in_report(config_data)
-    annual_surplus, surplus_type, monthly_surplus = calculate_surplus(yearly_data, total_monthly_expenses)
-
-    # Calculate expenses
-    total_school_expense, total_highschool_expense, total_college_expense = calculate_total_school_expense(config_data)
-    yearly_income_deficit = int(config_data['yearly_expense'])
-
-
-    # Add expenses to the calculated_data dictionary
-    calculated_data = {
-        "yearly_data": yearly_data,
-        "total_monthly_expenses": total_monthly_expenses,
-        "monthly_expenses_breakdown": monthly_expenses_breakdown,
-        "annual_surplus": annual_surplus,
-        "surplus_type": surplus_type,
-        "monthly_surplus": monthly_surplus,
-        "total_school_expense": total_school_expense,
-        "total_highschool_expense": total_highschool_expense,
-        "total_college_expense": total_college_expense,
-        "yearly_income_deficit": yearly_income_deficit,
-        "expenses_not_factored_in_report": expenses_not_factored_in_report
-    }
-
-    return calculated_data
 
 def calculate_investment_values(config_data, annual_surplus):
     logging.debug("Entering <function ")
@@ -1289,158 +1245,19 @@ def calculate_financial_values(config_data, tax_rate):
 
     return calculated_data
 
-def calculate_house_data(current_house, config_data, new_house):
-    """
-    This function calculates all house-related information.
-    """
-    logging.debug("Entering <function>")
-
-    # Check if current_house, config_data, or new_house are None and log appropriately
-    if current_house is None:
-        logging.error("current_house is None")
-        return None
-
-    if config_data is None:
-        logging.error("config_data is None")
-        return None
-
-    # Proceed only if config_data has the expected keys
-    if "home_tenure" not in config_data:
-        logging.error("'home_tenure' not found in config_data")
-        return None
-
-    # Determine if a new house is expected
-    new_house_expected = config_data.get("new_house_expected", False)
-
-    if new_house is None and new_house_expected:
-        logging.error("new_house is None for a scenario that expects a new house purchase")
-        return None
-
-    # Initialize values
-    new_house_cost_basis = 0  # Default value when no new house
-    new_house_fees = 0  # Initialize new_house_fees to ensure it has a value
-    new_house_future_value = 0  # Initialize to handle no new house
-
-    # When owning the house
-    if config_data["home_tenure"] == "Own":
-        sale_basis, total_commission, capital_gain, house_net_worth, capital_from_house = calculate_house_values(current_house, config_data)
-
-        if new_house:
-            new_house_sale_basis, new_house_total_commission, new_house_taxable_capital_gain, new_house_cost_basis, new_house_future_value, new_house_fees, invest_capital, house_capital_investment = calculate_new_house_values(new_house, capital_from_house, config_data)
-            house_networth_future, house_value_future, remaining_principal = calculate_future_house_values(new_house, config_data, current_house, new_house_future_value)
-        else:
-            # Handle case where no new house is being purchased
-            house_networth_future, house_value_future, remaining_principal = calculate_future_house_values(None, config_data, current_house, new_house_future_value)
-
-    elif config_data["home_tenure"] == "Rent":
-        sale_basis, total_commission, capital_gain, house_net_worth, capital_from_house = calculate_house_values(current_house, config_data)
-        
-        if new_house:
-            new_house_sale_basis, new_house_total_commission, new_house_taxable_capital_gain, new_house_cost_basis, new_house_future_value, new_house_fees, invest_capital, house_capital_investment = calculate_new_house_values(new_house, capital_from_house, config_data)
-            house_networth_future, house_value_future, remaining_principal = calculate_future_house_values(new_house, config_data, current_house, new_house_future_value)
-        else:
-            # Handle case where no new house is being purchased
-            house_networth_future, house_value_future, remaining_principal = calculate_future_house_values(None, config_data, current_house, new_house_future_value)
-
-    else:
-        logging.error("Invalid 'home_tenure' value")
-        return None
-
-    logging.debug("Exiting <function>")
-    return {
-        "sale_basis": sale_basis,
-        "total_commission": total_commission,
-        "capital_gain": capital_gain,
-        "house_value_future": house_value_future,
-        "house_net_worth": new_house_cost_basis if new_house else house_net_worth,
-        "capital_from_house": capital_from_house,
-        "new_house": new_house,
-        "new_house_cost": new_house_cost_basis,  # This is now initialized
-        "new_house_value": new_house_future_value,
-        "new_house_fees": new_house_fees,  # Now initialized
-        "invest_capital": invest_capital if 'invest_capital' in locals() else 0,  # Initialize if not set
-        "house_capital_investment": house_capital_investment if 'house_capital_investment' in locals() else 0,  # Initialize if not set
-        "house_networth_future": house_networth_future,
-        "remaining_principal": remaining_principal,
-    }
-
-
-
-def _calculate_house_data(current_house, config_data, new_house):
-    """
-    This function calculates all house-related information.
-    """
-    logging.debug(f"Entering <function>")
-
-    # Check if current_house, config_data, or new_house are None and log appropriately
-    if current_house is None:
-        logging.error("current_house is None")
-        return None
-
-    if config_data is None:
-        logging.error("config_data is None")
-        return None
-
-    # Proceed only if config_data has the expected keys
-    if "home_tenure" not in config_data:
-        logging.error("'home_tenure' not found in config_data")
-        return None
-
-    if new_house is None and config_data["home_tenure"] == "Own":
-        logging.error("new_house is None for a scenario that expects a new house purchase")
-        return None
-
-    # When owning the house
-    if config_data["home_tenure"] == "Own":
-        sale_basis, total_commission, capital_gain, house_net_worth, capital_from_house = calculate_house_values(current_house, config_data)
-
-        # Handle None case for new house
-        if new_house:
-            new_house_sale_basis, new_house_total_commission, new_house_taxable_capital_gain, new_house_cost_basis, new_house_future_value, new_house_fees, invest_capital, house_capital_investment = calculate_new_house_values(new_house, capital_from_house, config_data)
-            house_networth_future, house_value_future, remaining_principal = calculate_future_house_values(new_house, config_data, current_house, new_house_future_value)
-        else:
-            new_house_cost_basis = new_house_future_value = new_house_fees = invest_capital = house_capital_investment = 0
-            house_networth_future, house_value_future, remaining_principal = calculate_future_house_values(current_house, config_data)
-
-    elif config_data["home_tenure"] == "Rent":
-        sale_basis, total_commission, capital_gain, house_net_worth, capital_from_house = calculate_house_values(current_house, config_data)
-        if new_house:
-            new_house_sale_basis, new_house_total_commission, new_house_taxable_capital_gain, new_house_cost_basis, new_house_future_value, new_house_fees, invest_capital, house_capital_investment = calculate_new_house_values(new_house, capital_from_house, config_data)
-            house_networth_future, house_value_future, remaining_principal = calculate_future_house_values(new_house, config_data, current_house, new_house_future_value)
-        else:
-            house_networth_future = house_value_future = remaining_principal = new_house_cost_basis = new_house_future_value = 0
-
-    else:
-        logging.error("Invalid 'home_tenure' value")
-        return None
-
-    logging.debug(f"Exiting <function>")
-    return {
-        "sale_basis": sale_basis,
-        "total_commission": total_commission,
-        "capital_gain": capital_gain,
-        "house_value_future": house_value_future,
-        "house_net_worth": new_house_cost_basis if new_house else house_net_worth,  # Use Cost Basis for the new house if applicable
-        "capital_from_house": capital_from_house,
-        "new_house": new_house,
-        "new_house_cost": new_house_cost_basis,
-        "new_house_value": new_house_future_value,
-        "new_house_fees": new_house_fees,
-        "invest_capital": invest_capital, 
-        "house_capital_investment": house_capital_investment,
-        "house_networth_future": house_networth_future,
-        "remaining_principal": remaining_principal,
-    }
-
-
 def calculate_house_info(config_data):
-    logging.debug("Entering <function ")
+    logging.debug("Entering <function calculate_house_info>")
 
     current_house, new_house = initialize_house_variables(config_data)
     house_info = calculate_house_data(current_house=current_house, config_data=config_data, new_house=new_house)
 
+    # Check if house_info is None
+    if house_info is None:
+        logging.warning("house_info is None. Using an empty dictionary for logging.")
+        house_info = {}
+
     log_data(house_info, title="House Info")
-    logging.debug("Exiting <function ")
+    logging.debug("Exiting <function calculate_house_info>")
 
     return current_house, new_house, house_info
 
@@ -1788,8 +1605,22 @@ def generate_report(config_data, scenario_name):
     calculated_data = calculate_financial_values(config_data, tax_rate)
     calculated_data["scenario_name"] = scenario_name
     current_house, new_house, house_info = calculate_house_info(config_data)
+    
+    # Check if house_info is None
+    if house_info is None:
+        logging.error("house_info is None. Ensure calculate_house_info returns valid data.")
+        raise ValueError("house_info is None. Ensure calculate_house_info returns valid data.")
+    
     calculate_expenses_and_net_worth(config_data, calculated_data, house_info)
+
+    # Ensure that invest_capital_from_house_sale is safe to access
     invest_capital_from_house_sale = house_info.get("invest_capital", 0)
+    
+    # Check if invest_capital_from_house_sale is valid
+    if invest_capital_from_house_sale is None:
+        logging.warning("invest_capital_from_house_sale is None; defaulting to 0.")
+        invest_capital_from_house_sale = 0
+
     sale_of_house_investment = calculate_future_value(invest_capital_from_house_sale, 0, 0, config_data["interest_rate"], config_data["years"])
     investment_projected_growth = calculate_future_value(config_data.get('investment_balance', 0), 0, 0, config_data["interest_rate"], config_data["years"])
     investment_principal = calculated_data.get("balance_with_expenses", 0)
@@ -1886,122 +1717,6 @@ def generate_report(config_data, scenario_name):
     return summary_data
 
 
-def _generate_report(config_data, scenario_name):
-    logging.debug(f"Scenario: {scenario_name}")
-
-    if not config_data:
-        logging.error("config_data is missing")
-        raise ValueError("config_data is missing")
-
-    tax_rate = calculate_tax_rate(config_data)
-    calculated_data = calculate_financial_values(config_data, tax_rate)
-    calculated_data["scenario_name"] = scenario_name
-    current_house, new_house, house_info = calculate_house_info(config_data)
-    calculate_expenses_and_net_worth(config_data, calculated_data, house_info)
-    invest_capital_from_house_sale = house_info.get("invest_capital", 0)
-    sale_of_house_investment = calculate_future_value(invest_capital_from_house_sale, 0, 0, config_data["interest_rate"], config_data["years"])
-    investment_projected_growth = calculate_future_value(config_data.get('investment_balance', 0),0, 0, config_data["interest_rate"], config_data["years"])
-    investment_principal = calculated_data.get("balance_with_expenses", 0)
-    house_capital_investment = house_info.get("house_capital_investment", 0)
-
-    report_data = {
-        "config_data": config_data,
-        "calculated_data": calculated_data,
-        "house_info": house_info,
-        "current_house": current_house,
-        "new_house": new_house,
-    }
-
-    future_value_html = report_html_generator.generate_future_value_html_table(report_data)
-    current_value_html = report_html_generator.generate_current_networth_html_table(report_data, invest_capital_from_house_sale, sale_of_house_investment, investment_projected_growth)
-    scenario_summary_html = report_html_generator.generate_section_html(
-        "Scenario",
-        calculated_data.get("scenario_info", {})
-    )
-    yearly_net_html = report_html_generator.generate_section_html(
-        "Cash Flow Before School Fees",
-        calculated_data.get("yearly_income_report", {}),
-        custom_formatter=format_currency
-    )
-    # Retrieve the values
-    yearly_net_minus_school = calculated_data.get("yearly_net_minus_school", 0)
-    avg_yearly_fee = calculated_data.get("avg_yearly_fee", 0)
-
-    # Ensure both values are numeric
-    yearly_net_minus_school = float(yearly_net_minus_school) if isinstance(yearly_net_minus_school, (int, float)) else 0
-    avg_yearly_fee = float(avg_yearly_fee) if isinstance(avg_yearly_fee, (int, float)) else 0
-
-    cashflow_After_school_data = {
-        "Average Annual School Fees": avg_yearly_fee,
-        "Cash Flow After School Fees": yearly_net_minus_school,  
-
-    }
-
-    # Now you can use total_after_fees as needed
-    total_after_fees_html = report_html_generator.generate_section_html(
-        "Cash Flow After School Fees",
-        cashflow_After_school_data,
-        custom_formatter=format_currency
-    )
-
-    assumptions_html = report_html_generator.generate_section_html(
-        section_title="Assumptions",
-        data=retrieve_assumptions(config_data, tax_rate),
-        custom_formatter=None,
-        collapsible=True
-    )
-    
-    monthly_expenses_html = report_html_generator.generate_section_html(
-        section_title="Monthly Expenses Breakdown",
-        data=calculated_data.get("monthly_expenses_breakdown", {}),
-        custom_formatter=format_currency,
-        collapsible=True
-    )
-    expenses_not_factored_html = report_html_generator.generate_section_html(
-        section_title="Expenses Not Factored In",
-        data=calculated_data.get("expenses_not_factored_in_report", {}),
-        custom_formatter=None,
-        collapsible=True
-    )
-    school_expenses_table_html = report_html_generator.generate_table_for_child(config_data, headers=["School", "Year", "Cost"])
-    retirement_table_html = report_html_generator.generate_retirement_table(config_data, table_class="retirement-table")
-    investment_table_html = report_html_generator.generate_investment_table(config_data.get("Investment", {}),format_currency)
-    # current_house_html = report_html_generator.generate_current_house_html(report_data["current_house"])
-    current_house_html = report_html_generator.generate_current_house_html(current_house)
-    new_house_html = report_html_generator.generate_new_house_html(new_house)
-
-    summary_data = {
-        "house_capital_investment": house_capital_investment,
-        "investment_principal": investment_principal,
-        "assumption_description": config_data.get("assumption_description", ""),
-        "description_detail": config_data.get("description_detail", ""),
-        "annual_surplus": calculated_data.get("annual_surplus", ""),
-        "future_value": future_value_html,
-        "current_value": current_value_html,
-        "scenario_summary_info": scenario_summary_html,
-        "yearly_net_html": yearly_net_html,
-        "assumptions_html": assumptions_html,
-        "monthly_expenses_html": monthly_expenses_html,
-        "expenses_not_factored_html": expenses_not_factored_html,
-        "total_after_fees_html": total_after_fees_html,
-        "school_expenses_table_html": school_expenses_table_html,
-        "investment_table_html": investment_table_html,
-        "retirement_table_html": retirement_table_html,
-        "current_house_html": current_house_html,
-        "new_house_html": new_house_html,
-    }
-    
-
-    scenario_html = report_html_generator.generate_html(report_data)
-    report_filename = f"{Path(__file__).parent.parent}/reports/detail_{scenario_name}.html"
-    with open(report_filename, 'w', encoding="utf-8") as file:
-        file.write(scenario_html)
-        logging.info(f"Report: {report_filename}")
-
-    logging.info(f"Scenario: {scenario_name}")
-    return summary_data
-
-
 def create_reports_directory():
     logging.debug("Entering <function ")
     reports_dir = Path(__file__).parent.parent / "reports"
@@ -2091,77 +1806,6 @@ def process_scenarios(input_file, scenarios_data, general_config, reports_dir, s
 
     return summary_report_data  # Optionally return the summary report data if needed
 
-
-def __process_scenarios(input_file, scenarios_data, general_config, reports_dir, scenarios_dir="scenarios"):
-    logging.debug("Entering process_scenarios")
-    
-    # Scenario selection logic
-    if "sequence" not in input_file.stem:
-        scenario_name = input_file.stem
-        selected_scenarios = [scenario_name]  # Get the scenario name from the input file
-        scenarios_data["selected_scenarios"] = selected_scenarios  # Ensure it's in scenarios_data
-
-        # Merge general_config into scenarios_data
-        for key, value in general_config.items():
-            if key not in scenarios_data:
-                scenarios_data[key] = value
-                logging.debug(f"Adding '{key}' from general_config to scenarios_data with value: {value}")
-
-    else:
-        selected_scenarios = scenarios_data.get("selected_scenarios", [])
-        if not selected_scenarios:
-            logging.error("No selected scenarios found in scenarios_data for sequence processing.")
-            return  # Exit the function if no scenarios are found
-
-    # Store summary report data for all processed scenarios
-    summary_report_data = {}
-
-    # Process each selected scenario
-    for scenario_name in selected_scenarios:
-        logging.info(f"Processing scenario: {scenario_name}")
-
-        scenario_file = Path(__file__).parent.parent / scenarios_dir / f"{scenario_name}.json"
-        logging.debug(f"Scenario file: {scenario_file}")
-
-        # Load scenario-specific data
-        try:
-            scenario_specific_data = load_config(scenario_file)
-        except Exception as e:
-            logging.error(f"Failed to load scenario file {scenario_file}: {str(e)}")
-            continue  # Skip to the next scenario
-
-        # Merge the scenario-specific data with scenarios_data
-        config_data = {**scenarios_data, **scenario_specific_data}
-
-        # Log essential config data
-        logging.info(f"{'config_data:':<43} {'json'}")
-        logging.info(f"{'years:':<43} {config_data.get('years', 'Not specified')}")
-        logging.info(f"{'residence_location:':<43} {config_data.get('residence_location', 'Not specified')}")
-        logging.info(f"{'home_tenure:':<43} {config_data.get('home_tenure', 'Not specified')}")
-
-        # Generate the report
-        try:
-            summary_data = generate_report(config_data, scenario_name)
-            summary_report_data[scenario_name] = summary_data  # Store as a dictionary
-            logging.info(f"Report generated successfully for scenario: {scenario_name}")
-        except Exception as e:
-            logging.error(f"Error processing scenario {scenario_name}: {str(e)}")
-
-        logging.info("-" * 70)  # Use a line of dashes or other separator
-
-    # Determine the report name
-    report_name = determine_report_name(scenarios_data)
-
-    logging.info(f"Generating HTML report for scenarios: {', '.join(selected_scenarios)}")
-
-    # Generate the HTML report
-    summary_report_html = report_html_generator.generate_summary_report_html(summary_report_data)
-
-    summary_report_filename = reports_dir / f"{report_name}.html"
-    with summary_report_filename.open('w', encoding='utf-8') as summary_file:
-        summary_file.write(summary_report_html)
-
-    return summary_report_data  # Optionally return the summary report data if needed
 
 def process_scenario(scenario_name, scenarios_data, reports_dir, scenarios_dir="scenarios"):
     logging.debug("Entering process_scenario")
