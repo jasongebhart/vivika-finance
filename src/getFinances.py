@@ -3,47 +3,63 @@ import investment_module
 import report_html_generator
 from pathlib import Path
 import logging
-import json  # Import JSON module
-from utils import LOGS_DIR
+import utils
 
 def main():
+    """Main entry point of the script."""
     try:
-        # Extract scenario name from input file path or arguments
-        args = investment_module.handle_arguments()
+        args = utils.handle_arguments()
         input_file = Path(args.config_file_path)
+        logs_dir = utils.LOGS_DIR.resolve()
+        scenario_log_file_name = logs_dir / f"{input_file.stem}.log"
 
-        # Extract the scenario name from the input file
-        scenario_name = input_file.stem  # Filename without extension
+        # Load the logging level from the configuration
+        logging_level = utils.load_logging_level()  # Assume you have a function to get this
 
-        # Create scenario log file name using LOGS_DIR
-        scenario_log_file_name = LOGS_DIR / f"{scenario_name}.log"
-    
-        # Setup logging
-        investment_module.setup_logging(scenario_log_file=scenario_log_file_name, log_dir=LOGS_DIR, log_level=logging.DEBUG)
+        setup_logging(scenario_log_file_name, logs_dir, logging_level)
 
-        logging.info("Starting script execution.")
-
-        if not input_file.exists():
-            investment_module.exit_script_with_message(f"File {input_file} does not exist.", log_message="Missing input file.")
-
-        # Load scenarios data and configuration
+        validate_input_file(input_file)
+        
         scenarios_data, general_config = investment_module.load_configuration()
         reports_dir = investment_module.create_reports_directory()
 
-        # Verify reports_dir is valid
-        if not reports_dir:
-            logging.error(f"Failed to create or locate reports directory: {reports_dir}")
-            sys.exit(1)
+        validate_reports_directory(reports_dir)
 
-        # Process scenarios
-        investment_module.process_scenarios(input_file, scenarios_data, general_config, reports_dir)
-
-        logging.info(f"Generating HTML report for scenarios: {', '.join(scenarios_data['selected_scenarios'])}")
-        logging.info("Summary report successfully generated.")
+        process_scenarios(input_file, scenarios_data, general_config, reports_dir)
 
     except Exception as e:
-        logging.error(f"An error occurred: {e}", exc_info=True)
-        sys.exit(1)  # Exit with error code 1 to indicate failure
+        handle_error(e)
+
+def setup_logging(scenario_log_file_name: Path, logs_dir: Path, logging_level: str):
+    """Set up logging for the script."""
+    level = getattr(logging, logging_level.upper(), logging.DEBUG)  # Default to DEBUG if not found
+    logging.basicConfig(filename=scenario_log_file_name, level=level,
+                        format='%(asctime)s - %(levelname)s - %(message)s')
+    logging.info("Starting script execution.")
+
+def validate_input_file(input_file: Path):
+    """Validate the existence of the input file."""
+    if not input_file.exists():
+        logging.error("Missing input file.")
+        print(f"File {input_file} does not exist.")
+        sys.exit(1)
+
+def validate_reports_directory(reports_dir: Path):
+    """Validate the reports directory."""
+    if not reports_dir:
+        logging.error(f"Failed to create or locate reports directory: {reports_dir}")
+        sys.exit(1)
+
+def process_scenarios(input_file: Path, scenarios_data: dict, general_config: dict, reports_dir: Path):
+    """Process the scenarios and generate the report."""
+    investment_module.process_scenarios(input_file, scenarios_data, general_config, reports_dir)
+    logging.info(f"Generating HTML report for scenarios: {', '.join(scenarios_data['selected_scenarios'])}")
+    logging.info("Summary report successfully generated.")
+
+def handle_error(error: Exception):
+    """Log and exit on error."""
+    logging.error(f"An error occurred: {error}", exc_info=True)
+    sys.exit(1)  # Exit with error code 1 to indicate failure
 
 if __name__ == "__main__":
     main()

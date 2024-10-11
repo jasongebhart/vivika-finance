@@ -5,30 +5,41 @@ from pathlib import Path
 import investment_module
 import report_html_generator
 import logging
-import concurrent.futures  # For parallel execution
-from utils import LOGS_DIR
+import concurrent.futures
+import utils
 
-def validate_json(json_file_path):
+# Define constants for magic strings
+GET_FINANCES_SCRIPT = 'getFinances.py'
+INDEX_FILE = 'index.html'
+NAVIGATION_PLACEHOLDER = "<!-- INSERT NAVIGATION HERE -->"
+JSON_SUFFIX = '.json'
+EXCLUDED_PREFIX = 'seq'
+
+class ConfigurationError(Exception):
+    """Custom exception for configuration errors."""
+    pass
+
+def validate_json(json_file_path: Path) -> bool:
     """Validate the JSON file before running the report."""
-    try:
-        with open(json_file_path, 'r') as file:
-            json.load(file)
-        return True  # JSON is valid
-    except FileNotFoundError:
+    if not json_file_path.is_file():
         logging.error(f"File not found: {json_file_path}")
-        return False  # JSON is invalid
-    except json.JSONDecodeError as e:
-        logging.error(f"Invalid JSON in {json_file_path}: {e}")
-        return False  # JSON is invalid
-    except Exception as e:
-        logging.error(f"Unexpected error while validating JSON in {json_file_path}: {e}")
         return False
 
-def run_report_for_json(json_file_path):
+    try:
+        with json_file_path.open('r') as file:
+            json.load(file)
+        return True  # JSON is valid
+    except json.JSONDecodeError as e:
+        logging.error(f"Invalid JSON in {json_file_path}: {e}")
+    except Exception as e:
+        logging.error(f"Unexpected error while validating JSON in {json_file_path}: {e}")
+    return False  # JSON is invalid
+
+def run_report_for_json(json_file_path: Path):
     """Runs getFinances.py for the given JSON file."""
     logging.info(f"Running report for {json_file_path}")
     try:
-        result = subprocess.run(['python', 'getFinances.py', str(json_file_path)], capture_output=True, text=True)
+        result = subprocess.run([GET_FINANCES_SCRIPT, str(json_file_path)], capture_output=True, text=True)
 
         if result.returncode != 0:
             logging.error(f"Error generating report for {json_file_path}: {result.stderr}")
@@ -37,39 +48,90 @@ def run_report_for_json(json_file_path):
     except Exception as e:
         logging.error(f"Failed to run report for {json_file_path}: {e}")
 
-def main():
-    # Load config from JSON
-    config_path = Path('./config.json')
+def load_configuration(config_path: Path) -> dict:
+    """Load configuration from the JSON file."""
+    if not config_path.is_file():
+        logging.error(f"Configuration file not found: {config_path}")
+        raise ConfigurationError(f"Configuration file not found: {config_path}")
+
     try:
         with config_path.open('r') as f:
             config = json.load(f)
-    except FileNotFoundError:
-        logging.error(f"Configuration file not found: {config_path}")
-        return
+        
+        # Load lookup dictionaries
+        config['lookup'] = {
+            'name_lookup': config['lookup'].get('name_lookup', {}),
+            'work_status_lookup': config['lookup'].get('work_status_lookup', {}),
+            'location_lookup': config['lookup'].get('location_lookup', {}),
+            'ownership_type_lookup': config['lookup'].get('ownership_type_lookup', {}),
+            'school_type_lookup': config['lookup'].get('school_type_lookup', {})
+        }
+        return config
     except json.JSONDecodeError as e:
         logging.error(f"Invalid JSON in configuration file: {e}")
-        return
+        raise ConfigurationError(f"Invalid JSON in configuration file: {e}")
     except Exception as e:
         logging.error(f"Unexpected error while loading configuration: {e}")
-        return
+        raise ConfigurationError(f"Unexpected error while loading configuration: {e}")
+
+def setup_directories(json_dir: Path, reports_dir: Path):
+    """Setup required directories."""
+    json_dir.mkdir(parents=True, exist_ok=True)
+    reports_dir.mkdir(parents=True, exist_ok=True)
+    utils.LOGS_DIR.mkdir(parents=True, exist_ok=True)
+
+def get_valid_json_files(json_dir: Path, excluded_files: set) -> list:
+    """Get a list of valid JSON files."""
+    return [
+        f for f in json_dir.iterdir()
+        if f.suffix == JSON_SUFFIX and f.name not in excluded_files and not f.name.startswith(EXCLUDED_PREFIX)
+    ]
+
+def update_navigation_in_reports(html_files: list, reports_dir: Path, toc_content: dict):
+    """Inject navigation into each scenario report."""
+    for html_file in html_files:
+        file_path = reports_dir / html_file
+        with file_path.open('r', encoding='utf-8') as file:
+            file_content = file.read()
+
+        updated_content = file_content.replace(NAVIGATION_PLACEHOLDER, 
+                                                report_html_generator.generate_navigation(toc_content))
+
+        with file_path.open('w', encoding='utf-8') as file:
+            file.write(updated_content)
+        logging.info(f"Updated navigation in: {file_path}")
+
+def setup_logging(logging_level: str):
+    """Setup logging configuration."""
+    level = getattr(logging, logging_level.upper(), logging.INFO)  # Default to INFO if not found
+    logging.basicConfig(level=level,
+                        format='%(asctime)s - %(levelname)s - %(message)s')
+    logging.info("Logging is set up.")
+
+def main():
+    """Main entry point of the script."""
+    config_path = Path('./config.json')
+
+    try:
+        config = load_configuration(config_path)
+    except ConfigurationError:
+        return  # Exit if config loading failed
 
     # Setup directories
     json_dir = Path(config.get('json_dir', '../scenarios')).resolve()
     reports_dir = Path(config.get('reports_dir', '../reports')).resolve()
-    LOGS_DIR.mkdir(parents=True, exist_ok=True)
+    setup_directories(json_dir, reports_dir)
 
     # Configure logging
-    investment_module.setup_logging()
+    logging_level = config.get('logging_level', 'INFO')  # Default to INFO if not specified
+    setup_logging(logging_level)
 
     logging.info(f"Resolved reports directory: {reports_dir}")
-    logging.info(f"Resolved logs directory: {LOGS_DIR}")
+    logging.info(f"Resolved logs directory: {utils.LOGS_DIR.resolve()}")
 
     # Get a list of JSON files, excluding those starting with 'seq' and the excluded ones
     excluded_files = set(config.get('excluded_files', []))
-    json_files = [
-        f for f in json_dir.iterdir()
-        if f.suffix == '.json' and f.name not in excluded_files and not f.name.startswith('seq')
-    ]
+    json_files = get_valid_json_files(json_dir, excluded_files)
 
     # Validate JSON and run reports in parallel
     valid_json_files = [f for f in json_files if validate_json(f)]
@@ -81,25 +143,15 @@ def main():
     html_files = report_html_generator.get_html_files(reports_dir)
 
     # Organize content and generate navigation
-    toc_content = report_html_generator.organize_content(html_files, reports_dir)
+    toc_content = report_html_generator.organize_content(html_files, reports_dir, config)
 
     # Generate and write the index.html file
     index_content = report_html_generator.generate_html_structure(toc_content)
-    report_html_generator.write_html_to_file(reports_dir / "index.html", index_content)
-    logging.info(f"Index generated: {reports_dir / 'index.html'}")
+    report_html_generator.write_html_to_file(reports_dir / INDEX_FILE, index_content)
+    logging.info(f"Index generated: {reports_dir / INDEX_FILE}")
 
     # Inject navigation into each scenario report
-    for html_file in html_files:
-        file_path = reports_dir / html_file
-        with file_path.open('r', encoding='utf-8') as file:
-            file_content = file.read()
-
-        updated_content = file_content.replace("<!-- INSERT NAVIGATION HERE -->", 
-                                                report_html_generator.generate_navigation(toc_content))
-
-        with file_path.open('w', encoding='utf-8') as file:
-            file.write(updated_content)
-        logging.info(f"Updated navigation in: {file_path}")
+    update_navigation_in_reports(html_files, reports_dir, toc_content)
 
     logging.info("Reports generation completed. Check the reports directory for generated reports.")
 

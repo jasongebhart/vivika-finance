@@ -15,7 +15,7 @@ html_files = report_html_generator.get_html_files(reports_dir)
 if not html_files:
     print(f"No scenario HTML files found in {reports_dir}.")
 
-toc_content = report_html_generator.organize_content(html_files, reports_dir)
+toc_content = report_html_generator.organize_content(html_files, reports_dir, config)
 
 navigation = report_html_generator.generate_navigation(toc_content)
 # print(f"{navigation}")

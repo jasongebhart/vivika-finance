@@ -1,20 +1,12 @@
 import os
 from collections import defaultdict
-from bs4 import BeautifulSoup
+from bs4 import BeautifulSoup, Tag
 from utils import format_currency
 from html import escape
 from pathlib import Path
 import re
 import logging
 import json  # Import the JSON module
-
-def format_key(key):
-    import re
-    # Convert camel case or underscore-separated words to space-separated words
-    formatted_key = re.sub(r'(?<!^)(?=[A-Z][a-z])|_', ' ', key)
-    # Capitalize the first letter of each word
-    formatted_key = ' '.join(word.capitalize() for word in formatted_key.split())
-    return formatted_key
 
 def extract_numeric_value(currency_string):
     match = re.search(r'\d+\.\d+', currency_string)
@@ -478,6 +470,14 @@ def format_key(key):
     Example: Converts 'yearly_income_deficit' to 'Yearly Income Deficit'.
     """
     return key.replace('_', ' ').capitalize()
+
+def format_keydetailed(key):
+    import re
+    # Convert camel case or underscore-separated words to space-separated words
+    formatted_key = re.sub(r'(?<!^)(?=[A-Z][a-z])|_', ' ', key)
+    # Capitalize the first letter of each word
+    formatted_key = ' '.join(word.capitalize() for word in formatted_key.split())
+    return formatted_key
 
 def format_value(value):
     """
@@ -1266,17 +1266,25 @@ def check_viability_status(html_content):
     soup = BeautifulSoup(html_content, 'html.parser')
     status_element = soup.find('h4', class_='scenario-status')
 
-    # If the status element is found, check its class
-    if status_element:
-        classes = status_element.get('class', [])
-        if 'viable' in classes:
-            return 'viable'
-        elif 'not-viable' in classes:
-            return 'not-viable'
-    
+    # Check if status_element is found
+    if status_element is None:
+        logging.warning("Status element not found. Returning 'unknown'.")
+        return 'unknown'
+
+    # Ensure status_element is a Tag and not a NavigableString or other type
+    if isinstance(status_element, Tag):
+        class_list = status_element.get('class', [])
+        
+        # Ensure class_list is a list before performing 'in' checks
+        if isinstance(class_list, list):
+            return 'viable' if 'viable' in class_list else 'not-viable' if 'not-viable' in class_list else 'unknown'
+        else:
+            logging.warning(f"Unexpected class attribute type: {type(class_list)}. Returning 'unknown'.")
+    else:
+        logging.warning(f"Unexpected element type: {type(status_element)}. Returning 'unknown'.")
+
     logging.warning("No recognized status class found. Returning 'unknown'.")
     return 'unknown'
-
 
 # Define dictionaries for name and work status lookups
 name_lookup = {
@@ -1310,7 +1318,7 @@ school_type_lookup = {
     'pripub': 'Public-Private HS',
 }
 
-def extract_attributes_from_filename(filename):
+def extract_attributes_from_filename(filename, lookup):
     # Remove the extension
     name_parts = filename[:-5].split('_')
 
@@ -1331,11 +1339,10 @@ def extract_attributes_from_filename(filename):
     extra_content = "_".join(name_parts[7:]) if len(name_parts) > 7 else ""  # Join any extra parts into a single string
 
     # Generate full names using the lookup
-    full_names = [name_lookup.get(name, name).title() for name in names]
+    full_names = [lookup['name_lookup'].get(name, name).title() for name in names]
     
-    # Map ownership and school types to friendly names
-    friendly_ownership = ownership_type_lookup.get(ownership_type, ownership_type.title())
-    friendly_school = school_type_lookup.get(school_type, school_type.title())
+    friendly_ownership = lookup['ownership_type_lookup'].get(ownership_type, ownership_type.title())
+    friendly_school = lookup['school_type_lookup'].get(school_type, school_type.title())
     
     # Include extra content in the report name if available
     report_name_suffix = f" ({extra_content})" if extra_content else ""
@@ -1350,14 +1357,14 @@ def extract_attributes_from_filename(filename):
     return location, full_names, work_status, simplified_name, report_name_suffix
 
 
-def process_html_file(file_path):
+def process_html_file(file_path, config):
     """Process an HTML file to extract relevant attributes."""
     with open(file_path, 'r', encoding='utf-8') as f:
         html_content = f.read()
 
     # Extract attributes from the filename
     try:
-        location, full_names, work_status, simplified_name, report_name_suffix = extract_attributes_from_filename(os.path.basename(file_path))
+        location, full_names, work_status, simplified_name, report_name_suffix = extract_attributes_from_filename(os.path.basename(file_path),config['lookup'])
         return html_content, location, full_names, work_status, simplified_name, report_name_suffix
     except ValueError as e:
         print(f"Skipping file {file_path}: {e}")
@@ -1537,7 +1544,7 @@ def parse_filename(filename):
     return simplified_name
 
 
-def generate_index(html_dir):
+def generate_index(html_dir, config):
     """Process function to generate the index report."""
     html_files = get_html_files(html_dir)
 
@@ -1545,7 +1552,7 @@ def generate_index(html_dir):
         print(f"No scenario HTML files found in {html_dir}.")
         return
 
-    toc_content = organize_content(html_files, html_dir)
+    toc_content = organize_content(html_files, html_dir, config)
 
     # Generate final HTML content
     final_html_content = generate_html_structure(toc_content)
@@ -1561,7 +1568,7 @@ def get_html_files(html_dir):
     all_files = os.listdir(html_dir)
     return [f for f in all_files if f.endswith('.html') and f.startswith('scenario')]
 
-def organize_content(html_files, html_dir):
+def organize_content(html_files, html_dir, config):
     """Organize content from HTML files into a structured format."""
     # Initialize with 'viable', 'not-viable', and 'all'
     toc_content = {"viable": {}, "not-viable": {}, "all": {}}
@@ -1571,7 +1578,8 @@ def organize_content(html_files, html_dir):
         logging.info(f"Processing file: {file_path}")
 
         try:
-            result = process_html_file(file_path)
+            # Pass config to process_html_file
+            result = process_html_file(file_path, config)
             if result is None:
                 logging.warning(f"No result returned for file: {file_path}. Skipping.")
                 continue
@@ -1603,39 +1611,8 @@ def organize_content(html_files, html_dir):
 
     return toc_content
 
-def _organize_content(html_files, html_dir):
-    """Organize content from HTML files into a structured format."""
-    # Initialize with 'viable', 'not-viable', and 'unknown'
-    toc_content = {"viable": {}, "not-viable": {}, "unknown": {}}
 
-    for file in html_files:
-        file_path = os.path.join(html_dir, file)
-        print(f"Processing file: {file_path}")
-
-        result = process_html_file(file_path)
-        if result is None:
-            continue
-
-        html_content, location, full_names, work_status, simplified_name, report_name_suffix = result
-
-        # Check viability status
-        viability = check_viability_status(html_content)
-
-        # Handle unexpected viability statuses
-        if viability not in toc_content:
-            logging.warning(f"Unexpected viability status '{viability}' for file {file_path}. Defaulting to 'unknown'.")
-            viability = 'unknown'  # Default to 'unknown' if the status is unrecognized
-
-        # Initialize location in toc_content if it doesn't exist
-        if location not in toc_content[viability]:
-            toc_content[viability][location] = []
-
-        # Append the file details
-        toc_content[viability][location].append((file, simplified_name, full_names, work_status, report_name_suffix))
-
-    return toc_content
-
-def process_reports(html_dir):
+def process_reports(html_dir, config):
     """Process function to gather report data without generating HTML."""
     html_files = get_html_files(html_dir)
 
@@ -1643,7 +1620,7 @@ def process_reports(html_dir):
         print(f"No scenario HTML files found in {html_dir}.")
         return
 
-    toc_content = organize_content(html_files, html_dir)
+    toc_content = organize_content(html_files, html_dir, config)
     
     # Generate navigation data
     navigation_data = generate_navigation(toc_content)

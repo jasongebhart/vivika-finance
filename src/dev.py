@@ -6,7 +6,7 @@ from pathlib import Path
 import logging
 from utils import format_currency
 from html import escape
-from utils import LOGS_DIR
+import utils
 
 def generate_html(config_data):
     html_content = """
@@ -159,7 +159,7 @@ def retrieve_assumptions(config_data, calculated_data):
     return data
 
 def main():
-    investment_module.setup_logging(main_log_file="dev.log")
+    utils.setup_logging(main_log_file="dev.log")
 
     reports_dir = investment_module.create_reports_directory()
 

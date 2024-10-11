@@ -1,133 +1,16 @@
-import logging
 import sys  # import the sys module
 from pathlib import Path
 import json
+import logging
 import argparse
 from collections import namedtuple
 import report_html_generator
 from utils import format_currency
 from typing import Tuple, Union, List, Dict, Optional
+from utils import log_data
+import utils
 
 CAPITAL_GAIN_EXCLUSION = 500000
-
-def setup_logging(main_log_file=None, scenario_log_file=None, log_dir="logs", log_level=logging.INFO):
-    """
-    Sets up logging for both console and file handlers.
-
-    :param main_log_file: Name of the main log file (default is None).
-    :param scenario_log_file: Name of the scenario-specific log file (default is None).
-    :param log_dir: Directory where logs are stored.
-    :param log_level: Logging level (default INFO).
-    """
-    Path(log_dir).mkdir(parents=True, exist_ok=True)
-    
-    logger = logging.getLogger()
-    logger.setLevel(log_level)
-    log_formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(funcName)s - %(message)s')
-
-    # Console Handler
-    console_handler = logging.StreamHandler()
-    console_handler.setLevel(log_level)
-    console_handler.setFormatter(log_formatter)
-    logger.addHandler(console_handler)
-
-    # Main Log File Handler (append mode, only if provided)
-    if main_log_file:
-        main_log_path = Path(log_dir) / main_log_file
-        main_file_handler = logging.FileHandler(main_log_path, mode='a')
-        main_file_handler.setLevel(log_level)
-        main_file_handler.setFormatter(log_formatter)
-        logger.addHandler(main_file_handler)
-
-    # Scenario Log File Handler (overwrite mode, only if provided)
-    if scenario_log_file:
-        scenario_log_path = Path(log_dir) / scenario_log_file
-        scenario_file_handler = logging.FileHandler(scenario_log_path, mode='w')
-        scenario_file_handler.setLevel(log_level)
-        scenario_file_handler.setFormatter(log_formatter)
-        logger.addHandler(scenario_file_handler)
-
-    logger.info("Logging is set up.")
-
-def handle_arguments():
-    try:
-        args = parse_arguments()
-        log_data(vars(args), title="Arguments Received")
-        return args
-
-    # Handle argument-related errors
-    except argparse.ArgumentError as e:
-        logging.error(f"Argument parsing error: {e}")
-        sys.exit(1)
-    
-    # Handle incorrect types or values in the arguments
-    except ValueError as e:
-        logging.error(f"Invalid argument value: {e}")
-        sys.exit(1)
-    
-    # Handle any other potential issues (keeping a catch-all for unforeseen exceptions)
-    except Exception as e:
-        logging.exception(f"An unexpected error occurred: {e}")
-        sys.exit(1)
-
-
-def log_data(data: Union[Dict, List], title: Optional[str] = None, format_as_currency: bool = False) -> None:
-    """
-    Logs a dictionary or list in a structured format.
-
-    :param data: The data to log (dict or list).
-    :param title: Optional title to be logged before the data.
-    :param format_as_currency: If True, formats numbers in the data as currency.
-    :return: None
-    """
-    if title:
-        logging.info(f"--- {title} ---")
-
-    if isinstance(data, dict):
-        if format_as_currency:
-            # Format each value as currency if it is a number
-            formatted_data = {k: format_currency(v) if isinstance(v, (int, float)) else v for k, v in data.items()}
-            logging.info(formatted_data)
-        else:
-            logging.info(data)
-
-    elif isinstance(data, list):
-        # If data is a list, log each item
-        if format_as_currency:
-            formatted_list = [format_currency(item) if isinstance(item, (int, float)) else item for item in data]
-            logging.info(formatted_list)
-        else:
-            logging.info(data)
-
-    else:
-        logging.warning("Unsupported data type provided to log_data.")
-
-def parse_arguments():
-    """
-    Parses command-line arguments for the financial configuration script.
-
-    Returns:
-        argparse.Namespace: Parsed arguments containing the configuration file path.
-    """
-    logging.debug("Entering parse_arguments function")
-
-    # Define the argument parser
-    parser = argparse.ArgumentParser(description='Process financial configuration.')
-    parser.add_argument('config_file_path', nargs='?', default='config.finance.json', help='Path to the configuration file')
-
-    args = parser.parse_args()
-
-    # Log the parsed arguments
-    logging.info(f"Parsed arguments: {args}")
-    
-    # Check if the configuration file exists
-    config_path = Path(args.config_file_path)
-    if not config_path.exists():
-        logging.error(f"Configuration file {config_path} does not exist.")
-        sys.exit(1)  # Exits the program if the config file is not found
-    
-    return args
-
 
 def load_configuration() -> Tuple[Dict, Dict]:
     """
@@ -167,7 +50,7 @@ def parse_and_load_config():
     logging.debug("Entering parse_and_load_config")
 
     # Load the main configuration file
-    args = parse_arguments()
+    args = utils.parse_arguments()
     config_data = load_config(args.config_file_path)
 
     # Get the directory of the configuration file
@@ -595,50 +478,63 @@ def calculate_house_values(current_house, config_data):
     return sale_basis, total_commission, capital_gain, house_net_worth, capital_from_house
 
 def calculate_new_house_values(new_house, capital_from_house, config_data):
-    logging.debug("Entering <function ")
+    logging.debug("Entering <function calculate_new_house_values>")
+    
     if not new_house:
-        logging.info("No new house, returning default values")
-        return 0, 0, 0, 0, 0, 0, 0, 0  # Return default values if there's no new house
+        logging.warning("No new house provided; cannot calculate values.")
+        return (None, None, None, 0, 0, 0, 0, 0)  # Return None for calculations that depend on new house
 
-    # Calculate sale basis and capital gains for the new house
-    commission_rate_newhouse = config_data['new_house']['commission_rate']
-    new_house_sale_basis, new_house_total_commission = new_house.calculate_sale_basis(commission_rate=commission_rate_newhouse)
-    new_house_taxable_capital_gain = new_house.calculate_capital_gains()
-    logging.info(f"{'New House Taxable Capital Gains:':<33} {format_currency(new_house_taxable_capital_gain)}")
-    new_house_capital_gains_tax = new_house_taxable_capital_gain * .15
-    logging.info(f"{'New House Capital Gains Tax:':<33} {format_currency(new_house_capital_gains_tax)}")
-    
-    # Set the new_house_value
-    years = config_data['years']
-    annual_growth_rate = config_data['new_house']['annual_growth_rate']
-    new_house_cost_basis = config_data['new_house']['cost_basis']
-    new_house_future_value = new_house_cost_basis * (1 + annual_growth_rate) ** years
-    new_house_fees = config_data['new_house']['cost_basis'] * .01
-    
-    # Calculate the investment capital from the sale of the current house
-    logging.info(f"{'invest_capital:':<25} {format_currency(capital_from_house)} -{format_currency(new_house_cost_basis)} -{format_currency(new_house_fees)}")
-    invest_capital = capital_from_house - new_house_cost_basis - new_house_fees
-    logging.info(f"{'invest_capital:':<33} {format_currency(invest_capital)}")
-    interest_rate = config_data['interest_rate']
-    house_capital_investment = calculate_future_value(invest_capital, 0, 0, interest_rate, years)
-    logging.info(f"{config_data['new_house']['annual_growth_rate']}")
-    house_values = {
-        "sale_basis": new_house_sale_basis,
-        "total_commission": new_house_total_commission,
-        "capital_gain": new_house_taxable_capital_gain,
-        "new_house_cost": new_house_cost_basis,
-        "new_house_future_value": new_house_future_value,
-        "new_house_fees": new_house_fees,
-        "invest_capital": invest_capital,
-        "house_capital_investment": house_capital_investment
-    }
+    # Assuming new_house is an object with expected properties and methods
+    try:
+        # Calculate sale basis and capital gains for the new house
+        commission_rate_newhouse = config_data['new_house']['commission_rate']
+        new_house_sale_basis, new_house_total_commission = new_house.calculate_sale_basis(commission_rate=commission_rate_newhouse)
+        new_house_taxable_capital_gain = new_house.calculate_capital_gains()
+        
+        logging.info(f"{'New House Taxable Capital Gains:':<33} {format_currency(new_house_taxable_capital_gain)}")
+        
+        new_house_capital_gains_tax = new_house_taxable_capital_gain * .15
+        logging.info(f"{'New House Capital Gains Tax:':<33} {format_currency(new_house_capital_gains_tax)}")
 
-    formatted_values = "\n".join([f"{key}={format_currency(value)}" for key, value in house_values.items()])
-    logging.info(f"New house values:\n{formatted_values}")
+        # Set the new_house_value
+        years = config_data['years']
+        annual_growth_rate = config_data['new_house']['annual_growth_rate']
+        
+        new_house_cost_basis = config_data['new_house']['cost_basis']
+        new_house_future_value = new_house_cost_basis * (1 + annual_growth_rate) ** years
+        new_house_fees = config_data['new_house']['cost_basis'] * .01
 
-    return (new_house_sale_basis, new_house_total_commission, new_house_taxable_capital_gain,
-            new_house_cost_basis, new_house_future_value, new_house_fees, 
-            invest_capital, house_capital_investment)
+        # Calculate the investment capital from the sale of the current house
+        logging.info(f"{'invest_capital:':<25} {format_currency(capital_from_house)} - {format_currency(new_house_cost_basis)} - {format_currency(new_house_fees)}")
+        invest_capital = capital_from_house - new_house_cost_basis - new_house_fees
+        logging.info(f"{'invest_capital:':<33} {format_currency(invest_capital)}")
+        
+        interest_rate = config_data['interest_rate']
+        house_capital_investment = calculate_future_value(invest_capital, 0, 0, interest_rate, years)
+        
+        logging.info(f"{config_data['new_house']['annual_growth_rate']}")
+        
+        house_values = {
+            "sale_basis": new_house_sale_basis,
+            "total_commission": new_house_total_commission,
+            "capital_gain": new_house_taxable_capital_gain,
+            "new_house_cost": new_house_cost_basis,
+            "new_house_future_value": new_house_future_value,
+            "new_house_fees": new_house_fees,
+            "invest_capital": invest_capital,
+            "house_capital_investment": house_capital_investment
+        }
+
+        formatted_values = "\n".join([f"{key}={format_currency(value)}" for key, value in house_values.items()])
+        logging.info(f"New house values:\n{formatted_values}")
+
+        return (new_house_sale_basis, new_house_total_commission, new_house_taxable_capital_gain,
+                new_house_cost_basis, new_house_future_value, new_house_fees, 
+                invest_capital, house_capital_investment)
+
+    except Exception as e:
+        logging.error(f"Error calculating new house values: {str(e)}")
+        return (None, None, None, 0, 0, 0, 0, 0)  # Return defaults on error
 
 def initialize_variables():
     return 0, 0, 0
@@ -1110,7 +1006,7 @@ def calculate_house_data(current_house, config_data, new_house):
     """
     This function calculates all house-related information.
     """
-    logging.debug("Entering <function>")
+    logging.debug("Entering <function calculate_house_data>")
 
     # Check if current_house, config_data, or new_house are None and log appropriately
     if current_house is None:
@@ -1133,12 +1029,22 @@ def calculate_house_data(current_house, config_data, new_house):
         logging.error("new_house is None for a scenario that expects a new house purchase")
         return None
 
+    # Initialize variables to ensure they have default values
+    new_house_cost_basis = 0
+    new_house_future_value = 0
+    new_house_fees = 0
+    invest_capital = 0
+    house_capital_investment = 0
+
     # When owning the house
     if config_data["home_tenure"] == "Own":
         sale_basis, total_commission, capital_gain, house_net_worth, capital_from_house = calculate_house_values(current_house, config_data)
 
         if new_house:
-            new_house_sale_basis, new_house_total_commission, new_house_taxable_capital_gain, new_house_cost_basis, new_house_future_value, new_house_fees, invest_capital, house_capital_investment = calculate_new_house_values(new_house, capital_from_house, config_data)
+            (new_house_sale_basis, new_house_total_commission, new_house_taxable_capital_gain,
+             new_house_cost_basis, new_house_future_value, new_house_fees,
+             invest_capital, house_capital_investment) = calculate_new_house_values(new_house, capital_from_house, config_data)
+            
             # Call with the correct arguments
             house_networth_future, house_value_future, remaining_principal = calculate_future_house_values(new_house, config_data, current_house, new_house_future_value)
         else:
@@ -1148,7 +1054,10 @@ def calculate_house_data(current_house, config_data, new_house):
     elif config_data["home_tenure"] == "Rent":
         sale_basis, total_commission, capital_gain, house_net_worth, capital_from_house = calculate_house_values(current_house, config_data)
         if new_house:
-            new_house_sale_basis, new_house_total_commission, new_house_taxable_capital_gain, new_house_cost_basis, new_house_future_value, new_house_fees, invest_capital, house_capital_investment = calculate_new_house_values(new_house, capital_from_house, config_data)
+            (new_house_sale_basis, new_house_total_commission, new_house_taxable_capital_gain,
+             new_house_cost_basis, new_house_future_value, new_house_fees,
+             invest_capital, house_capital_investment) = calculate_new_house_values(new_house, capital_from_house, config_data)
+
             # Call with the correct arguments
             house_networth_future, house_value_future, remaining_principal = calculate_future_house_values(new_house, config_data, current_house, new_house_future_value)
         else:
@@ -1159,7 +1068,8 @@ def calculate_house_data(current_house, config_data, new_house):
         logging.error("Invalid 'home_tenure' value")
         return None
 
-    logging.debug("Exiting <function>")
+    logging.debug("Exiting <function calculate_house_data>")
+    
     return {
         "sale_basis": sale_basis,
         "total_commission": total_commission,
@@ -1836,5 +1746,3 @@ def process_scenario(scenario_name, scenarios_data, reports_dir, scenarios_dir="
     logging.info("-" * 70)  # Use a line of dashes or other separator
 
     return summary_data
-
-
