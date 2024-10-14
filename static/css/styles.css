@@ -509,3 +509,79 @@ th {
         page-break-inside: avoid; /* Prevent row from breaking inside a page */
     }
 } 
+.form-group {
+    margin-bottom: 15px; /* Space between form fields */
+}
+
+.form-group label {
+    display: block; /* Ensure labels are on top */
+    margin-bottom: 5px; /* Space between label and input */
+    font-weight: bold; /* Make labels stand out */
+}
+
+.form-group input {
+    width: 100%; /* Full width inputs */
+    padding: 10px; /* Inner padding for better interaction */
+    border: 1px solid #ccc; /* Border color */
+    border-radius: 4px; /* Rounded corners */
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1); /* Light shadow for depth */
+}
+
+.submit-button {
+    background-color: var(--primary-color); /* Primary color */
+    color: white; /* Text color */
+    padding: 10px 15px; /* Padding */
+    border: none; /* Remove border */
+    border-radius: 4px; /* Rounded corners */
+    cursor: pointer; /* Pointer cursor on hover */
+}
+
+.submit-button:hover {
+    background-color: var(--primary-color-soft); /* Softer shade on hover */
+}
+
+.cancel-button {
+    background-color: #f44336; /* Red background for cancel */
+    color: white; /* Text color */
+    padding: 10px 15px; /* Padding */
+    border: none; /* Remove border */
+    border-radius: 4px; /* Rounded corners */
+    cursor: pointer; /* Pointer cursor on hover */
+}
+
+.cancel-button:hover {
+    background-color: #d32f2f; /* Darker red on hover */
+}
+
+label {
+    display: block; /* Labels as block elements for full width */
+    margin-bottom: 5px; /* Space below labels */
+    font-weight: bold; /* Bold labels */
+}
+
+/* Input Fields */
+input[type="text"],
+input[type="number"],
+input[type="checkbox"] {
+    width: 100%; /* Full width for text and number inputs */
+    padding: 10px; /* Inner padding */
+    border: 1px solid #ccc; /* Light grey border */
+    border-radius: 4px; /* Rounded corners */
+    box-sizing: border-box; /* Includes padding in width */
+}
+
+input[type="checkbox"] {
+    width: auto; /* Auto width for checkboxes */
+    margin-top: 5px; /* Space above checkbox */
+}
+
+/* Two-column layout for sections */
+.two-column {
+    display: flex; /* Flexbox for two columns */
+    flex-wrap: wrap; /* Allow items to wrap */
+    gap: 20px; /* Space between columns */
+}
+
+.form-group {
+    flex: 1; /* Each form group takes equal space */
+}

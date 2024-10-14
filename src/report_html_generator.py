@@ -1,197 +1,185 @@
 import os
 from collections import defaultdict
 from bs4 import BeautifulSoup, Tag
-from utils import format_currency
 from html import escape
 from pathlib import Path
 import re
 import logging
-import json  # Import the JSON module
+import json
+from io import StringIO
+from typing import Any, Optional, Union
 
-def extract_numeric_value(currency_string):
-    match = re.search(r'\d+\.\d+', currency_string)
-    if match:
-        return float(match.group())
-    else:
-        return None  # Handle invalid currency strings
+# Try to import with relative paths for Flask app
+try:
+    from .utils import format_currency
+except ImportError:
+    # Fallback to absolute import if running as a standalone script
+    from utils import format_currency
+
+def extract_numeric_value(currency_string: str) -> float | None:
+    """
+    Extracts a numeric value from a currency string.
     
-def generate_school_expense_coverage_html(data):
-    html = """  
-    <button id='school-expense-coverage-button' type='button' class='collapsible' onclick='toggleCollapsible("school-expense-coverage-button", "school-expense-coverage-content")'>School Expense Coverage</button>
+    Args:
+        currency_string (str): A string containing a currency value.
+    
+    Returns:
+        float | None: The extracted numeric value, or None if no valid number is found.
+    """
+    match = re.search(r'\d+(\.\d+)?', currency_string)
+    return float(match.group()) if match else None
+
+def generate_school_expense_coverage_html(data: list[dict[str, Any]]) -> str:
+    """
+    Generates HTML for school expense coverage table with a collapsible structure.
+    
+    Args:
+        data (List[Dict[str, Any]]): List of dictionaries containing school expense data.
+    
+    Returns:
+        str: Generated HTML string with collapsible structure.
+    """
+    if not data:
+        logging.info("School expense coverage data NOT found")
+        return "<p>No school expense coverage data available.</p>"
+    
+    logging.info("School expense coverage data found")
+    
+    html = """
+    <button id='school-expense-coverage-button' class='collapsible' onclick='toggleCollapsible("school-expense-coverage-button", "school-expense-coverage-content")'>
+        School Expense Coverage
+    </button>
     <div id='school-expense-coverage-content' class='content'>
         <div class='table-container'>
             <table>
                 <tr><th>Year</th><th>Covered</th><th>Remaining Surplus</th><th>Deficit</th></tr>
     """
-
+    
     for row in data:
-        html += f"<tr><td>{row['year']}</td><td>{'Yes' if row['covered'] else 'No'}</td><td>${row['remaining_surplus']:,}</td><td>${row['deficit']:,}</td></tr>"
-
+        html += f"""
+            <tr>
+                <td>{row['year']}</td>
+                <td>{'Yes' if row['covered'] else 'No'}</td>
+                <td>{format_currency(row['remaining_surplus'])}</td>
+                <td>{format_currency(row['deficit'])}</td>
+            </tr>
+        """
+    
     html += """
             </table>
         </div>
     </div>
     """
-
+    
     return html
 
-
-def generate_current_house_html(current_house):
-    """Generates HTML content for the current house section with collapsible functionality,
-    formatting specific fields differently as needed.
-
-    Args:
-        current_house (object): An object representing the current house.
-
-    Returns:
-        str: The generated HTML content.
+def generate_house_html(house_data: Any, title: str) -> str:
     """
-
-    if not current_house:
-        # Return a message or an empty table if no data is provided
-        logging.info("current house info NOT found")
-        return "<p>No current_house data available.</p>"
-    logging.info("current house info found")
-
-    # Define fields that should be treated as plain numbers
-    plain_number_fields = ["number_of_payments", "payments_made"]
-
-    html_content = f"""
-    <button id='current-house-button' class='collapsible' onclick='toggleCollapsible("current-house-button", "current-house-content")'>
-        Current House
+    Generates HTML for house data (current or new) with a collapsible structure.
+    
+    Args:
+        house_data (Any): An object representing the house data.
+        title (str): Title of the table.
+    
+    Returns:
+        str: Generated HTML string with collapsible structure.
+    """
+    if not house_data:
+        logging.info(f"{title} info NOT found")
+        return f"<p>No {title.lower()} data available.</p>"
+    
+    logging.info(f"{title} info found")
+    
+    # Create a lower case, hyphenated version of the title for IDs
+    id_prefix = title.lower().replace(' ', '-')
+    
+    html = f"""
+    <button id='{id_prefix}-button' class='collapsible' onclick='toggleCollapsible("{id_prefix}-button", "{id_prefix}-content")'>
+        {title}
     </button>
-    <div id='current-house-content' class='content'>
+    <div id='{id_prefix}-content' class='content'>
         <div class='table-container'>
             <table>
                 <tr><th>Attribute</th><th>Value</th></tr>
     """
-
-    for attr, value in current_house.__dict__.items():
+    
+    for attr, value in house_data.__dict__.items():
         formatted_attr = format_key(attr)
-
-        if isinstance(value, (float, int)):
-            # Check if the attribute should be treated as a plain number
-            if attr.lower() in plain_number_fields:
-                formatted_value = str(value)  # Leave the number as-is
-            # Check for decimal interest rate (0 to 1)
-            elif 0 <= value <= 1:
-                formatted_value = f"{value:.2%}"  # Convert to percentage
-            else:
-                # Check for currency format
-                if re.search(r"^\$[\d,.]+$", str(value)):
-                    formatted_value = str(value)  # Keep currency format
-                else:
-                    formatted_value = "${:,.2f}".format(value)  # Format other numbers as currency
-        elif isinstance(value, str) and "%" in value:
-            formatted_value = value  # Keep percentage format with existing symbol
-        else:
-            formatted_value = str(value)
-        if isinstance(value, bool):
-            formatted_value = "Yes" if value else "No"
-
-        html_content += f"<tr><td>{formatted_attr}</td><td>{formatted_value}</td></tr>"
-
-    html_content += """
+        formatted_value = format_value(value)
+        html += f"<tr><td>{formatted_attr}</td><td>{formatted_value}</td></tr>"
+    
+    html += """
             </table>
         </div>
     </div>
     """
+    
+    return html
 
-    return html_content
-
-def generate_new_house_html(new_house):
-    """Generates HTML content for the new house section with collapsible functionality,
-    formatting specific fields differently as needed.
-
+def generate_current_house_html(current_house: Any) -> str:
+    """
+    Generates HTML for current house data.
+    
     Args:
-        new_house (object): An object representing the new house.
-
+        current_house (Any): An object representing the current house.
+    
     Returns:
-        str: The generated HTML content.
+        str: Generated HTML string with collapsible structure.
     """
+    return generate_house_html(current_house, "Current House")
 
-    if not new_house:
-        # Return a message or an empty table if no data is provided
-        logging.info("new house info NOT found")
-        return "<div class='collapsible'><p>New house not part of scenario.</p></div>"
-    logging.info("new house info found")
-
-    # Define fields that should be treated as plain numbers
-    plain_number_fields = ["number_of_payments", "payments_made"]
-
-    html_content = f"""
-    <button id='new-house-button' class='collapsible' onclick='toggleCollapsible("new-house-button", "new-house-content")'>
-        New House
-    </button>
-    <div id='new-house-content' class='content' '>
-        <div class='table-container'>
-            <table>
-                <tr><th>Attribute</th><th>Value</th></tr>
+def generate_new_house_html(new_house: Any) -> str:
     """
-
-    for attr, value in new_house.__dict__.items():
-        formatted_attr = format_key(attr)
-
-        if isinstance(value, (float, int)):
-            # Check if the attribute should be treated as a plain number
-            if attr.lower() in plain_number_fields:
-                formatted_value = str(value)  # Leave the number as-is
-            # Check for decimal interest rate (0 to 1)
-            elif 0 <= value <= 1:
-                formatted_value = f"{value:.2%}"  # Convert to percentage
-            else:
-                # Check for currency format
-                if re.search(r"^\$[\d,.]+$", str(value)):
-                    formatted_value = str(value)  # Keep currency format
-                else:
-                    formatted_value = "${:,.2f}".format(value)  # Format other numbers as currency
-        elif isinstance(value, str) and "%" in value:
-            formatted_value = value  # Keep percentage format with existing symbol
-        else:
-            formatted_value = str(value)
-        if isinstance(value, bool):
-            formatted_value = "Yes" if value else "No"
-
-        html_content += f"<tr><td>{formatted_attr}</td><td>{formatted_value}</td></tr>"
-
-    html_content += """
-            </table>
-        </div>
-    </div>
+    Generates HTML for new house data.
+    
+    Args:
+        new_house (Any): An object representing the new house.
+    
+    Returns:
+        str: Generated HTML string with collapsible structure.
     """
+    return generate_house_html(new_house, "New House")
 
-    return html_content
+def format_percentage(value: float) -> str:
+    """Formats a float as a percentage."""
+    return f"{value:.2%}"
+
+def calculate_safe_withdrawal(total_assets: float, rate: float = 0.04) -> float:
+    """Calculates the safe withdrawal amount based on total assets and a safe withdrawal rate."""
+    return total_assets * rate
 
 def generate_future_value_html_table(report_data):
     """Generates HTML content for the future value section of the financial report."""
-    years = report_data["config_data"]["years"]
-    new_house = report_data["house_info"]["new_house"]
-    new_house_value = report_data["house_info"]["new_house_value"]
-    house_networth_future = report_data["house_info"]["house_networth_future"]
-    total_employee_stockplan = report_data["calculated_data"]["total_employee_stockplan"]
-    balance_with_expenses = report_data["calculated_data"]["balance_with_expenses"]
-    house_capital_investment = report_data["house_info"]["house_capital_investment"]
-    future_retirement_value_contrib = report_data["calculated_data"]["future_retirement_value_contrib"]
-    combined_networth_future = report_data["calculated_data"]["combined_networth_future"]
+    # Unpack report data for better readability
+    house_info = report_data["house_info"]
+    calc_data = report_data["calculated_data"]
     config_data = report_data["config_data"]
+    
+    # Assign key variables
+    years = config_data["years"]
+    interest_rate = config_data["interest_rate"]
+    annual_growth_rate = config_data.get("house", {}).get("annual_growth_rate", 0)  # Default to 0 if not available
+    
+    # House and investment details
+    new_house = house_info["new_house"]
+    house_networth_future = house_info["house_networth_future"]
+    house_capital_investment = house_info["house_capital_investment"]
+    new_house_value = house_info["new_house_value"]
 
-    interest_rate = report_data["config_data"]["interest_rate"]
-    interest_rate_percentage = f"{interest_rate:.2%}"
-    annual_growth_rate = config_data.get("house", {}).get("annual_growth_rate")
-    annual_growth_rate_percentage = f"{annual_growth_rate:.2%}"
-  
-    # Calculate total retirement assets
+    # Calculated data
+    total_employee_stockplan = calc_data["total_employee_stockplan"]
+    balance_with_expenses = calc_data["balance_with_expenses"]
+    future_retirement_value_contrib = calc_data["future_retirement_value_contrib"]
+    combined_networth_future = calc_data["combined_networth_future"]
+
+    # Total retirement assets
     total_retirement_assets = future_retirement_value_contrib + balance_with_expenses + total_employee_stockplan
 
-    # Calculate safe withdrawal amount
-    safe_withdrawal_amount = 0.04 * total_retirement_assets
-    # Calculate future values
-    oneyear_house_value = house_networth_future * (0.035) 
-    oneyear_stock_value = total_retirement_assets * (interest_rate) 
-
-    # Combined future value
+    # Calculations
+    safe_withdrawal_amount = calculate_safe_withdrawal(total_retirement_assets)
+    oneyear_house_value = house_networth_future * 0.035  # Example house growth calculation
+    oneyear_stock_value = total_retirement_assets * interest_rate
     oneyear_growth = oneyear_house_value + oneyear_stock_value
-    # seven_percent_networth = 0.07 * combined_networth_future
 
     # HTML table rows
     rows = [
@@ -228,7 +216,7 @@ def generate_future_value_html_table(report_data):
         generate_net_worth_row(
             "Projected One-Year Growth",
             oneyear_growth,
-            f"A {interest_rate_percentage} return on net worth is often used as a hypothetical annual growth rate for investments in the stock market. <br>{annual_growth_rate_percentage} represents the growth of the house over time."
+            f"A {format_percentage(interest_rate)} return on net worth is often used as a hypothetical annual growth rate for investments in the stock market. <br>{format_percentage(annual_growth_rate)} represents the growth of the house over time."
         ),
         generate_net_worth_row(
             "4% Safe Withdrawal Rate",
@@ -246,59 +234,90 @@ def generate_future_value_html_table(report_data):
     """
     return html_content
 
-
-def generate_tooltip(icon, tooltip_text):
-    """Generates HTML for a tooltip."""
+def generate_tooltip(icon="ℹ️", tooltip_text="", position="top"):
+    """Generates HTML for a customizable tooltip.
+    
+    Args:
+        icon (str): Icon to display for the tooltip trigger (default is ℹ️).
+        tooltip_text (str): The tooltip message.
+        position (str): Position of the tooltip, e.g., 'top', 'bottom', 'left', 'right'.
+    
+    Returns:
+        str: HTML string for the tooltip.
+    """
     return f"""
-        <span class="tooltip">
-            <span class="tooltip-icon" aria-label="Tooltip available" role="tooltip">ℹ️</span>
-            <span class="tooltip-text">{tooltip_text}</span>
+        <span class="tooltip" aria-describedby="tooltip" data-tooltip-position="{position}">
+            <span class="tooltip-icon" aria-label="Tooltip available" role="tooltip">{icon}</span>
+            <span class="tooltip-text" id="tooltip">{tooltip_text}</span>
         </span>
     """
 
-def generate_net_worth_row(label, value, tooltip_text=None):
-    """Generates a row for the net worth table."""
-    tooltip_html = generate_tooltip("ℹ️", tooltip_text) if tooltip_text else ""
+def generate_net_worth_row(label, net_worth_value, tooltip_text=None):
+    """Generates a row for the net worth table, with optional tooltip.
+    
+    Args:
+        label (str): The label for the row (e.g., 'House Net Worth').
+        net_worth_value (float): The net worth value to display.
+        tooltip_text (str, optional): Tooltip text to display next to the value. Defaults to None.
+    
+    Returns:
+        str: HTML string for the row.
+    """
+    tooltip_html = generate_tooltip(tooltip_text=tooltip_text) if tooltip_text else ""
+    
     return f"""
         <tr>
             <th>{label}</th>
             <td>
                 <div class="net-worth-field">
-                    <span class="net-worth">{format_currency(value)}</span>
+                    <span class="net-worth">{format_currency(net_worth_value)}</span>
                     {tooltip_html}
                 </div>
             </td>
         </tr>
     """
 
-def generate_current_networth_html_table(report_data, invest_capital_from_house_sale, sale_of_house_investment, investment_projected_growth):
+def generate_current_networth_html_table(
+    report_data: dict, 
+    capital_from_house_sale: float, 
+    projected_investment: float, 
+    projected_growth: float
+) -> str:
     """
-    Generate HTML content for the current net worth section of the financial report.
+    Generates HTML content for the current net worth section of the financial report.
+
+    Args:
+        report_data (dict): Contains financial and house information.
+        capital_from_house_sale (float): Capital to be reinvested from house sale.
+        projected_investment (float): Projected value of the house sale investment.
+        projected_growth (float): Projected growth of investments.
+
+    Returns:
+        str: HTML content for the current net worth table.
     """
-    house_info = report_data["house_info"]
-    config_data = report_data["config_data"]
-    years = config_data["years"]
-    calculated_data = report_data["calculated_data"]
-    interest_rate = config_data["interest_rate"]
-    
-    interest_rate_percentage = f"{interest_rate:.2%}"
-    annual_growth_rate = config_data.get("house", {}).get("annual_growth_rate")
-    annual_growth_rate_percentage = f"{annual_growth_rate:.2%}"
+    # Constants
+    SAFE_WITHDRAWAL_RATE = 0.04
 
-    investment_balance = config_data.get('investment_balance', 0)
-    retirement_principal = config_data.get('retirement_principal', 0)
-    combined_networth = calculated_data.get("combined_networth", 0)
-    house_net_worth = house_info.get("house_net_worth", 0)
-    total_retirement_assets = invest_capital_from_house_sale + investment_balance + retirement_principal
+    # Extracting necessary information
+    house_info = report_data.get("house_info", {})
+    config_data = report_data.get("config_data", {})
+    calculated_data = report_data.get("calculated_data", {})
 
-    safe_withdrawal_amount = 0.04 * total_retirement_assets
-    # seven_percent_networth = 0.07 * combined_networth
+    years = config_data.get("years", 0)
+    interest_rate = config_data.get("interest_rate", 0.0)
+    annual_growth_rate = config_data.get("house", {}).get("annual_growth_rate", 0.0)
 
-    # Calculate future values
+    # Calculating necessary values
+    house_net_worth = house_info.get("house_net_worth", 0.0)
+    investment_balance = config_data.get('investment_balance', 0.0)
+    retirement_principal = config_data.get('retirement_principal', 0.0)
+    combined_networth = calculated_data.get("combined_networth", 0.0)
+
+    total_retirement_assets = capital_from_house_sale + investment_balance + retirement_principal
+    safe_withdrawal_amount = SAFE_WITHDRAWAL_RATE * total_retirement_assets
+
     oneyear_house_value = house_net_worth * annual_growth_rate 
-    oneyear_stock_value = total_retirement_assets * (interest_rate) 
-
-    # Combined future value
+    oneyear_stock_value = total_retirement_assets * interest_rate 
     oneyear_growth = oneyear_house_value + oneyear_stock_value
 
     # HTML table rows
@@ -310,25 +329,25 @@ def generate_current_networth_html_table(report_data, invest_capital_from_house_
         ),
         generate_net_worth_row(
             "House Re-Investment",
-            invest_capital_from_house_sale,
-            f"This is the capital that will be reinvested after the house is sold.<br>Projected Future Value: {format_currency(sale_of_house_investment)}"
+            capital_from_house_sale,
+            f"This is the capital that will be reinvested after the house is sold.<br>Projected Future Value: {format_currency(projected_investment)}"
         ),
         generate_net_worth_row(
             "Investment Balance",
             investment_balance,
-            f"Projected value if not used to cover expenses.<br>Projected Future Value: {format_currency(investment_projected_growth)}"
+            f"Projected value if not used to cover expenses.<br>Projected Future Value: {format_currency(projected_growth)}"
         ),
         generate_net_worth_row("Retirement Balance", retirement_principal),
         generate_net_worth_row("Net Worth", combined_networth),
         generate_net_worth_row(
             "Total Investment Assets",
             total_retirement_assets,
-            "The total investment assets include the sum of your investment balance, retirement principal, and any capital reinvested from the house sale. House net worth is not included."
+            "Total investment assets include investment balance, retirement principal, and any capital reinvested from the house sale. House net worth is not included."
         ),
         generate_net_worth_row(
             "Projected One-Year Growth",
             oneyear_growth,
-            f"A {interest_rate_percentage} return on net worth is often used as a hypothetical annual growth rate for investments in the stock market. <br>{annual_growth_rate_percentage} represents the growth of the house over time."
+            f"A {interest_rate:.2%} return on net worth is often used as a hypothetical annual growth rate for investments. <br>{annual_growth_rate:.2%} represents the growth of the house over time."
         ),
         generate_net_worth_row(
             "4% Safe Withdrawal Rate",
@@ -348,11 +367,12 @@ def generate_current_networth_html_table(report_data, invest_capital_from_house_
     return html_content
 
 
-def generate_income_expenses_html(section_title, calculated_data):
+def generate_income_expenses_html(section_title: str, calculated_data: dict) -> str:
     """
     Converts the calculated income and expenses data into an HTML table with collapsible functionality.
 
     Args:
+        section_title (str): The title of the income/expenses section.
         calculated_data (dict): The dictionary containing the income and expense data.
 
     Returns:
@@ -376,24 +396,14 @@ def generate_income_expenses_html(section_title, calculated_data):
     for key, value in calculated_data.items():
         formatted_key = format_key(key)  # Format the key for readability
 
-        # If the value is a dictionary (like monthly_expenses_breakdown), convert it into nested tables
         if isinstance(value, dict):
-            nested_table = "<table><thead><tr><th>Subcategory</th><th>Value</th></tr></thead><tbody>"
-            for sub_key, sub_value in value.items():
-                nested_table += f"<tr><td>{format_key(sub_key)}</td><td>{format_value(sub_value)}</td></tr>"
-            nested_table += "</tbody></table>"
-
+            nested_table = generate_nested_table(value)
             html_content += f"<tr><td>{formatted_key}</td><td>{nested_table}</td></tr>"
         
-        # If the value is a list (like yearly_data), generate rows for each item
         elif isinstance(value, list):
-            html_content += f"<tr><td>{formatted_key}</td><td>"
-            html_content += "<ul>"
-            for item in value:
-                html_content += f"<li>{format_value(item)}</li>"
-            html_content += "</ul></td></tr>"
+            list_html = generate_list(value)
+            html_content += f"<tr><td>{formatted_key}</td><td>{list_html}</td></tr>"
 
-        # For scalar values (int, float, str), directly add the row
         else:
             html_content += f"<tr><td>{formatted_key}</td><td>{format_value(value)}</td></tr>"
 
@@ -406,12 +416,70 @@ def generate_income_expenses_html(section_title, calculated_data):
 
     return html_content
 
-def generate_configuration_data_html(section_title, configuration_data):
+def format_key(key: str) -> str:
     """
-    Converts the calculated income and expenses data into an HTML table with collapsible functionality.
+    Formats a key for better readability in the HTML table.
+    
+    Args:
+        key (str): The key to format.
+
+    Returns:
+        str: Formatted key for display.
+    """
+    return key.replace('_', ' ').capitalize()
+
+def format_keydetailed(key: str) -> str:
+    """
+    Formats a key for detailed display, converting camel case or underscore-separated words
+    to space-separated words.
 
     Args:
-        configuration_data (dict): The dictionary containing the json configuration.
+        key (str): The key to format.
+
+    Returns:
+        str: Formatted detailed key for display.
+    """
+    # Convert camel case or underscore-separated words to space-separated words
+    formatted_key = re.sub(r'(?<!^)(?=[A-Z][a-z])|_', ' ', key)
+    # Capitalize the first letter of each word
+    return ' '.join(word.capitalize() for word in formatted_key.split())
+
+def format_value(value) -> str:
+    """
+    Formats a value for display in the HTML table.
+
+    Args:
+        value: The value to format.
+
+    Returns:
+        str: Formatted value for display.
+    """
+    if isinstance(value, (int, float)):
+        # Format numbers with commas
+        return f"{value:,.3f}" if isinstance(value, float) else f"{value:,}"
+    else:
+        # Return the string representation for other types
+        return str(value)
+
+def generate_nested_table(data: dict) -> str:
+    """Generate HTML for nested tables from a dictionary."""
+    nested_table = "<table><thead><tr><th>Subcategory</th><th>Value</th></tr></thead><tbody>"
+    for sub_key, sub_value in data.items():
+        nested_table += f"<tr><td>{format_key(sub_key)}</td><td>{format_value(sub_value)}</td></tr>"
+    nested_table += "</tbody></table>"
+    return nested_table
+
+def generate_list(items: list) -> str:
+    """Generate HTML for a list of items."""
+    return "<ul>" + "".join(f"<li>{format_value(item)}</li>" for item in items) + "</ul"
+
+def generate_configuration_data_html(section_title: str, configuration_data: dict) -> str:
+    """
+    Converts the JSON configuration data into an HTML table with collapsible functionality.
+
+    Args:
+        section_title (str): The title of the configuration section.
+        configuration_data (dict): The dictionary containing the JSON configuration.
 
     Returns:
         str: The generated HTML content as a collapsible table.
@@ -430,28 +498,18 @@ def generate_configuration_data_html(section_title, configuration_data):
                 <tbody>
     """
 
-    # Iterate over the calculated data dictionary
+    # Iterate over the configuration data dictionary
     for key, value in configuration_data.items():
         formatted_key = format_key(key)  # Format the key for readability
 
-        # If the value is a dictionary (like monthly_expenses_breakdown), convert it into nested tables
         if isinstance(value, dict):
-            nested_table = "<table><thead><tr><th>Subcategory</th><th>Value</th></tr></thead><tbody>"
-            for sub_key, sub_value in value.items():
-                nested_table += f"<tr><td>{format_key(sub_key)}</td><td>{format_value(sub_value)}</td></tr>"
-            nested_table += "</tbody></table>"
-
+            nested_table = generate_nested_table(value)
             html_content += f"<tr><td>{formatted_key}</td><td>{nested_table}</td></tr>"
         
-        # If the value is a list (like yearly_data), generate rows for each item
         elif isinstance(value, list):
-            html_content += f"<tr><td>{formatted_key}</td><td>"
-            html_content += "<ul>"
-            for item in value:
-                html_content += f"<li>{format_value(item)}</li>"
-            html_content += "</ul></td></tr>"
+            list_html = generate_list(value)
+            html_content += f"<tr><td>{formatted_key}</td><td>{list_html}</td></tr>"
 
-        # For scalar values (int, float, str), directly add the row
         else:
             html_content += f"<tr><td>{formatted_key}</td><td>{format_value(value)}</td></tr>"
 
@@ -464,42 +522,31 @@ def generate_configuration_data_html(section_title, configuration_data):
 
     return html_content
 
-def format_key(key):
-    """
-    Formats a key for better readability in the HTML table.
-    Example: Converts 'yearly_income_deficit' to 'Yearly Income Deficit'.
-    """
-    return key.replace('_', ' ').capitalize()
 
-def format_keydetailed(key):
-    import re
-    # Convert camel case or underscore-separated words to space-separated words
-    formatted_key = re.sub(r'(?<!^)(?=[A-Z][a-z])|_', ' ', key)
-    # Capitalize the first letter of each word
-    formatted_key = ' '.join(word.capitalize() for word in formatted_key.split())
-    return formatted_key
-
-def format_value(value):
+def safe_int_conversion(value) -> int:
     """
-    Formats a value for display in the HTML table.
+    Safely converts a value to an integer.
+
+    Args:
+        value: The value to convert.
+
+    Returns:
+        int: The converted integer or the original value if conversion fails.
     """
-    if isinstance(value, (int, float)):
-        # Format numbers with commas
-        return f"{value:,.3f}" if isinstance(value, float) else f"{value:,}"
-    else:
-        # Return the string representation for other types
-        return str(value)
+    try:
+        return int(value)
+    except (ValueError, TypeError):
+        return value  # or return 0, or any other default value
 
-
-def generate_current_networth_html(report_data):
+def generate_current_networth_html(report_data: dict) -> str:
     """
     Generate HTML content for the current net worth section of the financial report.
 
     Args:
-    - report_data (dict): Dictionary containing all necessary data for calculating the current net worth section.
+        report_data (dict): Dictionary containing all necessary data for calculating the current net worth section.
 
     Returns:
-    str: HTML content for the current net worth section.
+        str: HTML content for the current net worth section.
     """
     house_info = report_data["house_info"]
     config_data = report_data["config_data"]
@@ -510,23 +557,17 @@ def generate_current_networth_html(report_data):
     <div id='current-net-worth-content' class='content'>
         <div class='table-container'>
             <table>
-                <tr><th>House Net worth</th><td>{format_currency(house_info.get("house_net_worth", 0))}</td></tr>
+                <tr><th>House Net Worth</th><td>{format_currency(house_info.get("house_net_worth", 0))}</td></tr>
                 <tr><th>Investment Balance</th><td>{format_currency(config_data.get('investment_balance', 0))}</td></tr>
                 <tr><th>Retirement Balance</th><td>{format_currency(config_data.get('retirement_principal', 0))}</td></tr>
-                <tr><th>Combined Net worth</th><td>{format_currency(calculated_data.get("combined_networth", 0))}</td></tr>
+                <tr><th>Combined Net Worth</th><td>{format_currency(calculated_data.get("combined_networth", 0))}</td></tr>
             </table>
         </div>
     </div>
     """
     return html_content
 
-def safe_int_conversion(value):
-    try:
-        return int(value)
-    except (ValueError, TypeError):
-        return value  # or return 0, or any other default value
-
-def generate_table_html(data, custom_formatter=None, headers=None):
+def generate_table_html(data, custom_formatter=None, headers=None) -> str:
     """Generates HTML for a table based on the provided data.
 
     Args:
@@ -551,11 +592,11 @@ def generate_table_html(data, custom_formatter=None, headers=None):
     table_html += "             <tbody>\n"
     if isinstance(data, dict):
         for key, value in data.items():
-            formatted_value = custom_formatter(value) if custom_formatter and value is not None else value
+            formatted_value = apply_custom_formatter(value, custom_formatter)
             table_html += f"             <tr><th>{key}</th><td>{formatted_value}</td></tr>\n"
     elif hasattr(data, '__dict__'):
         for attr, value in data.__dict__.items():
-            formatted_value = custom_formatter(value) if custom_formatter and value is not None else value
+            formatted_value = apply_custom_formatter(value, custom_formatter)
             table_html += f"             <tr><th>{attr}</th><td>{formatted_value}</td></tr>\n"
     table_html += "            </tbody>\n"
 
@@ -563,7 +604,7 @@ def generate_table_html(data, custom_formatter=None, headers=None):
     return table_html
 
 
-def generate_paragraph_html(data, custom_formatter=None):
+def generate_paragraph_html(data: str, custom_formatter=None) -> str:
     """
     Generates HTML for a paragraph, with optional custom formatting.
 
@@ -575,13 +616,26 @@ def generate_paragraph_html(data, custom_formatter=None):
         str: The generated HTML content for the paragraph.
     """
     # Apply custom formatting if provided
-    if custom_formatter:
-        data = custom_formatter(data)
+    data = apply_custom_formatter(data, custom_formatter)
     
     return f"<p>{data}</p>"
 
 
-def generate_section_html(section_title, data, custom_formatter=None, headers=None, collapsible=False):
+def apply_custom_formatter(value, custom_formatter):
+    """
+    Applies a custom formatter to a value if provided.
+
+    Args:
+        value: The value to format.
+        custom_formatter (function, optional): A custom function to format the value.
+
+    Returns:
+        The formatted value or the original value if no formatter is provided.
+    """
+    return custom_formatter(value) if custom_formatter and value is not None else value
+
+
+def generate_section_html(section_title, data, custom_formatter=None, headers=None, collapsible=False) -> str:
     """Generates HTML content for a section, handling different data types with optional collapsibility.
 
     Args:
@@ -595,18 +649,16 @@ def generate_section_html(section_title, data, custom_formatter=None, headers=No
         str: The generated HTML content.
     """
     if not data:
-        # Return a message or an empty table if no data is provided
         logging.info("No data available passed to function")
         return "<p>No data available.</p>"
     
     html_content = ""
-
-    # Generate a unique ID for the collapsible section
-    section_id = section_title.replace(" ", "-").lower() if section_title else "section"
+    section_id = generate_section_id(section_title)
     button_id = f"{section_id}-button"
     content_id = f"{section_id}-content"
 
     logging.info(f"{section_id}, {button_id}, {content_id}") 
+
     # Add collapsibility button if required
     if collapsible:
         html_content += f"""
@@ -614,78 +666,52 @@ def generate_section_html(section_title, data, custom_formatter=None, headers=No
             <div id="{content_id}" class="content">
         """
     else:
-        # Standard section title without collapsibility
-        if section_title:
-            html_content += f"<h3>{section_title}</h3>\n"
-
-    # Check if data is dict or object and pass headers if provided
-    if isinstance(data, dict) or hasattr(data, '__dict__'):
-        try:
-            html_content += generate_table_html(data, custom_formatter, headers)
-        except Exception as e:
-            logging.error(f"Error generating table: {e}")
-            html_content += "<p>Error generating table content.</p>"
-    else:
-        html_content += generate_paragraph_html(data, custom_formatter)
-
-    # Close the collapsible content div if collapsibility is enabled
-    if collapsible:
-        html_content += "</div>"
-
-    return html_content
-
-def generate_house_section_html(section_title, data, custom_formatter=None, headers=None, collapsible=False):
-    """Generates HTML content for a section, handling different data types with optional collapsibility.
-
-    Args:
-        section_title (str or None): The title of the section, or None if no title is needed.
-        data: The data to be displayed in the section.
-        custom_formatter (function, optional): A custom function to format the values.
-        headers (list, optional): A list of column headers to display at the top of the table.
-        collapsible (bool, optional): Whether the section should be collapsible.
-
-    Returns:
-        str: The generated HTML content.
-    """
-    if not data:
-        # Return a message or an empty table if no data is provided
-        logging.info("No data available passed to function")
-        return "<p>No data available.</p>"
-    
-    html_content = ""
-
-    # Generate a unique ID for the collapsible section
-    section_id = section_title.replace(" ", "-").lower() if section_title else "section"
-    button_id = f"{section_id}-button"
-    content_id = f"{section_id}-content"
-
-    logging.info(f"{section_id}, {button_id}, {content_id}") 
-    # Add collapsibility button if required
-    if collapsible:
-        html_content += f"""
-            <button id="{button_id}" class="collapsible" onclick="toggleCollapsible('{button_id}', '{content_id}')">{section_title}</button>
-            <div id="{content_id}" class="content">
-        """
-    else:
-        # Standard section title without collapsibility
         if section_title:
             html_content += f"<h3>{section_title}</h3>"
 
-    # Check if data is dict or object and pass headers if provided
-    if isinstance(data, dict) or hasattr(data, '__dict__'):
-        try:
-            html_content += generate_table_html(data, custom_formatter=None, headers=headers)
-        except Exception as e:
-            logging.error(f"Error generating table: {e}")
-            html_content += "<p>Error generating table content.</p>"
-    else:
-        html_content += generate_paragraph_html(data, custom_formatter)
+    # Generate table or paragraph based on data type
+    html_content += generate_content_html(data, custom_formatter, headers)
 
-    # Close the collapsible content div if collapsibility is enabled
     if collapsible:
-        html_content += "</div>"
+        html_content += "</div>"  # Close the collapsible content div
 
     return html_content
+
+
+def generate_section_id(section_title: str) -> str:
+    """
+    Generates a unique section ID based on the section title.
+
+    Args:
+        section_title (str): The title of the section.
+
+    Returns:
+        str: A unique ID for the section.
+    """
+    return section_title.replace(" ", "-").lower() if section_title else "section"
+
+
+def generate_content_html(data, custom_formatter, headers) -> str:
+    """
+    Generates the HTML content for the provided data.
+
+    Args:
+        data: The data to be displayed.
+        custom_formatter (function, optional): A custom function to format the values.
+        headers (list, optional): A list of column headers for the table.
+
+    Returns:
+        str: The generated HTML content for the data.
+    """
+    if isinstance(data, dict) or hasattr(data, '__dict__'):
+        try:
+            return generate_table_html(data, custom_formatter, headers)
+        except Exception as e:
+            logging.error(f"Error generating table: {e}")
+            return "<p>Error generating table content.</p>"
+    else:
+        return generate_paragraph_html(data, custom_formatter)
+
 
 def generate_html(report_data):
     excluded_sections = ["current_house", "school_expense_coverage", "Yearly Income", "house_info"]
@@ -712,19 +738,19 @@ def generate_html(report_data):
     house_capital_investment = report_data["house_info"].get("house_capital_investment", 0)
 
     # Ensure both are floats or ints and handle None cases if necessary
-    if investment_principal is None:
-        investment_principal = 0
-    if house_capital_investment is None:
-        house_capital_investment = 0
+    investment_principal = investment_principal if investment_principal is not None else 0
+    house_capital_investment = house_capital_investment if house_capital_investment is not None else 0
 
     # Conditional check for viability
     viable_status = "Viable" if (investment_principal + house_capital_investment) > 50000 else "Not Viable"
+    logging.info(f"Investment Principal: {investment_principal}, House Capital Investment: {house_capital_investment}, Viable Status: {viable_status}")
 
-    # Generate the scenario filename (make sure to format the name correctly)
+    # Generate the scenario filename
     scenario_full_name = report_data["calculated_data"].get("scenario_name", "index")
     scenario_filename = f"scenario_{scenario_full_name}.html"
 
-    # Debugging the final result
+    # Start generating HTML content
+    logging.debug("Generating HTML content for the report.")
     html_content = f"""
     <!DOCTYPE html>
     <html lang="en">
@@ -744,7 +770,7 @@ def generate_html(report_data):
                     <p><strong>Status:</strong> {viable_status}</p>
                     <p><a href="{scenario_filename}">View Full Scenario</a></p>
     """
-    
+
     future_value_html = generate_future_value_html_table(report_data)
     formatted_future_title = format_key("Future Value")
     html_content += f"<button type='button' class='collapsible' onclick='toggleCollapsible(\"future-value\", \"future-value-content\")'>{escape(formatted_future_title)}</button>"
@@ -755,6 +781,7 @@ def generate_html(report_data):
     html_content += f"<button type='button' class='collapsible' onclick='toggleCollapsible(\"annual_income_surplus\", \"annual_income_surplus-content\")'>{escape(annual_income_surplus_title)}</button>"
     html_content += f"<div id='annual_income_surplus-content' class='content'>{annual_income_surplus_html}</div>"
 
+    logging.debug("Adding configuration data to HTML content.")
     html_content += generate_configuration_data_html("Configuration Data", report_data['config_data'])
     html_content += generate_income_expenses_html("Income and Expenses", report_data['calculated_data'])
     html_content += generate_current_networth_html(report_data)
@@ -763,17 +790,18 @@ def generate_html(report_data):
     html_content += school_expense_coverage_html
 
     headers = ["Attribute", "Value"]
-    logging.info("Generate house info HTML")
+    logging.info("Generating house info HTML.")
     
     if "house_info" in report_data:
-        house_info_html = generate_house_section_html(
+        house_info_html = generate_section_html(
             None,
             report_data["house_info"],
             custom_formatter=None,
-            headers=headers
+            headers=headers,
+            collapsible=True
         )
     else:
-        logging.info('"house_info" is NOT in report_data')
+        logging.warning('"house_info" is NOT in report_data')
         house_info_html = "<p>No house information available.</p>"
 
     formatted_house_info_title = format_key("House Info")
@@ -784,11 +812,11 @@ def generate_html(report_data):
     html_content += current_house_html
 
     if "new_house" in report_data:
-       logging.info('new_house FOUND in report_data')
-       new_house_html = generate_new_house_html(report_data["new_house"])
-       html_content += new_house_html
+        logging.info('new_house FOUND in report_data')
+        new_house_html = generate_new_house_html(report_data["new_house"])
+        html_content += new_house_html
     else:
-        logging.info('new_house is NOT in report_data')
+        logging.warning('new_house is NOT in report_data')
         html_content += "<p>new_house is NOT available.</p>"
     
     html_content += """
@@ -798,119 +826,10 @@ def generate_html(report_data):
     </body>
     </html>
     """
+    
+    logging.info("HTML content generated successfully.")
     return html_content
 
-
-def _generate_html(report_data):
-    excluded_sections = ["current_house", "school_expense_coverage", "Yearly Income", "house_info"]
-
-    def format_data(data):
-        formatted_data = ""
-        if isinstance(data, dict):
-            formatted_data += "<ul>"
-            for key, value in data.items():
-                if key not in excluded_sections:
-                    formatted_key = format_key(key)
-                    formatted_data += f"<li><strong>{escape(formatted_key)}:</strong> <span class='{key}-data'>{safe_int_conversion(format_data(value))}</span></li>"
-            formatted_data += "</ul>"
-        elif isinstance(data, list):
-            formatted_data += "<ul>"
-            for item in data:
-                formatted_data += f"<li>{escape(str(item))}</li>"
-            formatted_data += "</ul>"
-        else:
-            formatted_data += f"{safe_int_conversion(data)}"
-        return formatted_data
- 
-    investment_principal = report_data["calculated_data"].get("balance_with_expenses", 0)
-    house_capital_investment = report_data["house_info"].get("house_capital_investment", 0)
-
-
-    # Ensure both are floats or ints and handle None cases if necessary
-    if investment_principal is None:
-        investment_principal = 0
-    if house_capital_investment is None:
-        house_capital_investment = 0
-
-
-    # Conditional check for viability
-    viable_status = "Viable" if (investment_principal + house_capital_investment) > 50000 else "Not Viable"
-
-    # Debugging the final result
-
-    html_content = f"""
-    <!DOCTYPE html>
-    <html lang="en">
-    <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Financial Report</title>
-        <link rel="stylesheet" href="../static/css/styles.css">
-        <script src="../static/js/toggleVisibility.js"></script>
-    </head>
-    <body>
-        <h1>Financial Report</h1>
-        <div class='header-container'>
-    """
-    html_content += """
-        <div class='header'>
-        <h2 id='detail-title'>Detail</h2>
-        <div id='content' class='section-content'>
-    """
-    future_value_html = generate_future_value_html_table(report_data)
-    formatted_future_title = format_key("Future Value")
-    html_content += f"<button type='button' class='collapsible' onclick='toggleCollapsible(\"future-value\", \"future-value-content\")'>{escape(formatted_future_title)}</button>"
-    html_content += f"<div id='future-value-content' class='content'>{future_value_html}</div>"
-
-    annual_income_surplus_html = generate_section_html("Annual Income Surplus", report_data["calculated_data"]["annual_surplus"], format_currency)
-    annual_income_surplus_title = format_key("Annual Income Surplus")
-    html_content += f"<button type='button' class='collapsible' onclick='toggleCollapsible(\"annual_income_surplus\", \"annual_income_surplus-content\")'>{escape(annual_income_surplus_title)}</button>"
-    html_content += f"<div id='annual_income_surplus-content' class='content'>{annual_income_surplus_html}</div>"
-
-    html_content += generate_configuration_data_html("Configuration Data", report_data['config_data'])
-    html_content += generate_income_expenses_html("Income and Expenses", report_data['calculated_data'])
-    html_content += generate_current_networth_html(report_data)
-
-    school_expense_coverage_html = generate_school_expense_coverage_html(report_data["calculated_data"]["school_expense_coverage"])
-    html_content += school_expense_coverage_html
-
-    headers = ["Attribute", "Value"]
-    logging.info("Generate house info HTML")
-    
-    if "house_info" in report_data:
-        house_info_html = generate_house_section_html(
-            None,
-            report_data["house_info"],
-            custom_formatter=None,
-            headers=headers
-        )
-    else:
-        logging.info('"house_info" is NOT in report_data')
-        house_info_html = "<p>No house information available.</p>"
-
-    formatted_house_info_title = format_key("House Info")
-    html_content += f"<button type='button' class='collapsible' onclick='toggleCollapsible(\"house-info\", \"house-info-content\")'>{formatted_house_info_title}</button>"
-    html_content += f"<div id='house-info-content' class='content'>{house_info_html}</div>"
-
-    current_house_html = generate_current_house_html(report_data["current_house"])
-    html_content += current_house_html
-
-    if "new_house" in report_data:
-       logging.info('new_house FOUND in report_data')
-       new_house_html = generate_new_house_html(report_data["new_house"])
-       html_content += new_house_html
-    else:
-        logging.info('new_house is NOT in report_data')
-        html_content += "<p>new_house is NOT available.</p>"
-    
-    html_content += """
-                    </div>
-            </div>
-            </div> <!-- End of header-container -->
-    </body>
-    </html>
-    """
-    return html_content
 
 def generate_summary_report_html(summary_report_data):
     """
@@ -956,7 +875,7 @@ def generate_summary_report_html(summary_report_data):
         
         # Scenario section template with links to scenario and detail files
         return f"""
-        <main class='main-content' id='{scenario_id}-main'>
+        <section class='scenario' id='{scenario_id}'>
           <div class='header'>
             <h2>{escape(assumption_description)}</h2>
             <h4 class="scenario-status {viability_class}">
@@ -983,7 +902,7 @@ def generate_summary_report_html(summary_report_data):
               </div>
             </div>
           </div>
-        </main>
+        </section>
         """
 
     # Function to create detailed information section
@@ -992,7 +911,7 @@ def generate_summary_report_html(summary_report_data):
         scenario_id = scenario_name.replace(" ", "-").lower()
         detail_filename = f"detail_{scenario_name}.html"
         return f"""
-        <aside class='detailed-info' id='{scenario_id}-detail'>
+        <aside class='detailed-info' id='{scenario_id}-detail' aria-labelledby='{scenario_id}'>
             <h3>Detailed Information</h3>
             <div>{scenario_data["assumptions_html"]}</div>
             <div>{scenario_data["monthly_expenses_html"]}</div>
@@ -1003,13 +922,19 @@ def generate_summary_report_html(summary_report_data):
             <div>{scenario_data["current_house_html"]}</div>
             <div>{scenario_data["new_house_html"]}</div>
             <div>
-                <a href="{detail_filename}">View Detailed Information</a>
+                <a href="/view_report/{detail_filename}" aria-label="View detailed information for {escape(scenario_name)}">View Detailed Information</a>
             </div>
         </aside>
         """
 
     # Loop through each scenario to generate the HTML content
     for scenario_name, scenario_data in summary_report_data.items():
+        if not isinstance(scenario_data, dict):
+            logging.warning(f"Invalid data for scenario '{scenario_name}'. Expected a dictionary.")
+            continue  # Skip invalid scenario data
+
+        logging.info(f"Generating HTML for scenario: {scenario_name}")
+        
         html_content += "<div class='scenario-wrapper'>"  # Wrap scenario and detail together
         html_content += create_scenario_section(scenario_name, scenario_data)
         html_content += create_detailed_info_section(scenario_name, scenario_data)
@@ -1022,18 +947,7 @@ def generate_summary_report_html(summary_report_data):
     </html>
     """
     
-    return html_content
-
-
-def generate_html_for_dict(data):
-    html_content = "<table>"
-    for key, value in data.items():
-        if isinstance(value, dict):
-            html_content += f"<tr><th colspan='2'>{escape(str(key))}</th></tr>"
-            html_content += generate_html_for_dict(value)
-        else:
-            html_content += f"<tr><th>{escape(str(key))}</th><td>{escape(str(value))}</td></tr>"
-    html_content += "</table>"
+    logging.info("Summary report HTML generation complete.")
     return html_content
 
 def generate_table_for_child(child_data, table_class="expense-table", headers=["School Type", "Year", "Cost"]):
@@ -1047,57 +961,94 @@ def generate_table_for_child(child_data, table_class="expense-table", headers=["
     Returns:
         str: The generated HTML table content.
     """
-    if not child_data:
-        # Return a message or an empty table if no data is provided
-        return "<p>No chidlren school expenses data available.</p>"
+    if not child_data or "children" not in child_data:
+        # Return a message if no data is provided
+        return "<p>No children school expenses data available.</p>"
     
     html_content = ""  # Initialize the HTML content
 
     for index, child in enumerate(child_data.get("children", [])):
-        child_name = escape(child['name'])  # Get and escape the child's name
+        child_name = escape(child.get('name', 'Unnamed Child'))  # Get and escape the child's name
         child_id = f"childDetails-{index}"  # Create a unique ID for each child's details section
 
         # Add the child name as a collapsible button with toggle functionality
-        html_content += f"""
-            <button id="{child_id}-button" class="collapsible" onclick="toggleCollapsible('{child_id}-button', '{child_id}-content')">
-                {child_name} School
-            </button>
-            <div id="{child_id}-content" class="content">
-                <table class='{table_class}'>
-                    <thead>
-                        <tr><th>{escape(headers[0])}</th><th>{escape(headers[1])}</th><th>{escape(headers[2])}</th></tr>
-                    </thead>
-                    <tbody>
-        """
+        html_content += create_collapsible_button(child_id, child_name)
 
-        school_data = child.get("school", {})
-        
-        # Combine all entries across school types into one list
-        combined_entries = []
-        for school_type, entries in school_data.items():
-            for entry in entries:
-                combined_entries.append({
-                    'school_type': school_type,
-                    'year': int(entry['year']),
-                    'cost': entry['cost']
-                })
-
-        # Sort entries by year
-        sorted_entries = sorted(combined_entries, key=lambda entry: entry['year'])
-
-        for entry in sorted_entries:
-            year = escape(str(entry['year']))  # Convert back to string for HTML
-            cost = format_currency(entry['cost'])  # Format cost for readability
-            school_type = escape(entry['school_type'])
-            html_content += f"<tr><td>{school_type}</td><td>{year}</td><td>{cost}</td></tr>\n"
-
-        html_content += """
-                    </tbody>
-                </table>
-            </div>  <!-- End of hidden details section -->
-        """  # End of child section
+        # Generate the table for the child
+        html_content += generate_child_table(child, table_class, headers, child_id)
 
     return html_content
+
+def create_collapsible_button(child_id, child_name):
+    """Creates a collapsible button for the child's educational expenses.
+
+    Args:
+        child_id (str): Unique ID for the child's details section.
+        child_name (str): The name of the child.
+
+    Returns:
+        str: HTML for the collapsible button.
+    """
+    return f"""
+        <button id="{child_id}-button" class="collapsible" onclick="toggleCollapsible('{child_id}-button', '{child_id}-content')">
+            {child_name} School
+        </button>
+        <div id="{child_id}-content" class="content">
+    """
+
+def generate_child_table(child, table_class, headers, child_id):
+    """Generates an HTML table for the child's school expenses.
+
+    Args:
+        child (dict): A dictionary containing the child's data.
+        table_class (str): The CSS class to apply to the table.
+        headers (list): A list of column headers for the table.
+        child_id (str): Unique ID for the child's details section.
+
+    Returns:
+        str: HTML for the child's expenses table.
+    """
+    school_data = child.get("school", {})
+
+    # Combine all entries across school types into one list
+    combined_entries = []
+    for school_type, entries in school_data.items():
+        for entry in entries:
+            combined_entries.append({
+                'school_type': school_type,
+                'year': int(entry.get('year', 0)),
+                'cost': entry.get('cost', 0)
+            })
+
+    # Sort entries by year
+    sorted_entries = sorted(combined_entries, key=lambda entry: entry['year'])
+
+    if not sorted_entries:
+        return "<p>No school expense entries available for this child.</p>"
+
+    # Generate the table header
+    table_html = f"""
+        <table class='{table_class}'>
+            <thead>
+                <tr><th>{escape(headers[0])}</th><th>{escape(headers[1])}</th><th>{escape(headers[2])}</th></tr>
+            </thead>
+            <tbody>
+    """
+
+    # Generate the table rows
+    for entry in sorted_entries:
+        year = escape(str(entry['year']))  # Convert back to string for HTML
+        cost = format_currency(entry['cost'])  # Format cost for readability
+        school_type = escape(entry['school_type'])
+        table_html += f"<tr><td>{school_type}</td><td>{year}</td><td>{cost}</td></tr>\n"
+
+    table_html += """
+            </tbody>
+        </table>
+        </div>  <!-- End of hidden details section -->
+    """  # End of child section
+
+    return table_html
 
 def generate_investment_table(data, custom_formatter=None):
     """Generates HTML for a table based on the provided data.
@@ -1150,26 +1101,52 @@ def generate_retirement_table(config_data, table_class="retirement-table"):
     Returns:
         str: The generated HTML table content.
     """
-    if not config_data:
-        # Return a message or an empty table if no data is provided
-        return "<p>No No Retirement data available.</p>"
+    if not config_data or "RETIREMENT" not in config_data:
+        return "<p>No retirement data available.</p>"
 
     html_content = ""  # Initialize the HTML content
-    grand_total_balance = 0  # Initialize grand total for all parents
-    
-    retirement_data = config_data.get("RETIREMENT", [])  # Extract the "RETIREMENT" list
-
-    # Calculate grand total balance for all parents first
-    for parent in retirement_data:
-        accounts_data = parent.get("accounts", {})
-        for account_type, entries in accounts_data.items():
-            for entry in entries:
-                for account_name, balance in entry.items():
-                    grand_total_balance += balance  # Add to grand total balance
+    grand_total_balance = calculate_grand_total_balance(config_data["RETIREMENT"])
 
     # Add collapsible section for grand total balance at the top
+    html_content += create_grand_total_section(grand_total_balance, table_class)
+
+    # Iterate through each parent in the retirement data
+    retirement_data = config_data["RETIREMENT"]
+    for index, parent in enumerate(retirement_data):
+        html_content += create_parent_section(parent, index, table_class)
+
+    return html_content
+
+def calculate_grand_total_balance(retirement_data):
+    """Calculates the grand total balance from retirement accounts.
+
+    Args:
+        retirement_data (list): A list of retirement data for parents.
+
+    Returns:
+        float: The grand total balance for all parents.
+    """
+    grand_total = 0
+    for parent in retirement_data:
+        accounts_data = parent.get("accounts", {})
+        for entries in accounts_data.values():
+            for entry in entries:
+                for balance in entry.values():
+                    grand_total += balance
+    return grand_total
+
+def create_grand_total_section(grand_total_balance, table_class):
+    """Creates the HTML for the grand total balance section.
+
+    Args:
+        grand_total_balance (float): The grand total balance to display.
+        table_class (str): The CSS class to apply to the table.
+
+    Returns:
+        str: HTML for the grand total section.
+    """
     formatted_grand_total_balance = "{:,.2f}".format(grand_total_balance)
-    html_content += f"""
+    return f"""
         <button id="grandTotal-button" class="collapsible" onclick="toggleCollapsible('grandTotal-button', 'grandTotal-content')">Total Retirement Balance</button>
         <div id="grandTotal-content" class="content">
             <table class='{table_class}'>
@@ -1183,155 +1160,219 @@ def generate_retirement_table(config_data, table_class="retirement-table"):
         </div>
     """
 
-    # Iterate through each parent in the retirement data
-    for index, parent in enumerate(retirement_data):
-        parent_name = parent.get("name", "Unknown Parent")  # Get parent's name or default
-        parent_id = f"parentDetails-{index}"  # Unique ID for each parent's details section
+def create_parent_section(parent, index, table_class):
+    """Creates the HTML for a parent's section including contributions and accounts.
 
-        # Add collapsible section for each parent's details
-        html_content += f"""
-            <button id="{parent_id}-button" class="collapsible" onclick="toggleCollapsible('{parent_id}-button', '{parent_id}-content')">{escape(parent_name)} Retirement</button>
-            <div id="{parent_id}-content" class="content">
-                <h3>Contributions</h3>
-                <table class='{table_class}'>
-                    <thead>
-                        <tr><th>Type</th><th>Contribution</th><th>Amount</th></tr>
-                    </thead>
-                    <tbody>
-        """
+    Args:
+        parent (dict): A dictionary containing retirement data for a parent.
+        index (int): The index of the parent.
+        table_class (str): The CSS class to apply to the table.
 
-        # Initialize totals
-        total_contributions = 0
-        total_accounts_balance = 0
+    Returns:
+        str: HTML for the parent's section.
+    """
+    parent_name = escape(parent.get("name", "Unknown Parent"))
+    parent_id = f"parentDetails-{index}"
 
-        # Generate table for contributions
-        contributions_data = parent.get("contributions", {})
-        for contribution_type, entries in contributions_data.items():
-            for entry in entries:
-                for contribution, amount in entry.items():
-                    stripped_contribution = contribution.replace("spouse1_", "").replace("spouse2_", "").replace("retirement_", "").replace("contribution_", "").replace("_", " ").title()
-                    formatted_amount = "{:,.2f}".format(amount)  # Format amount with commas
-                    html_content += f"<tr><td>{escape(contribution_type)}</td><td>{escape(stripped_contribution)}</td><td>{formatted_amount}</td></tr>\n"
-                    total_contributions += amount  # Add to total contributions
-
-        # Display total contributions
-        formatted_total_contributions = "{:,.2f}".format(total_contributions)
-        html_content += f"<tr><td colspan='2'><strong>Total Contributions</strong></td><td><strong>{formatted_total_contributions}</strong></td></tr>\n"
-        html_content += "</tbody>\n</table>\n"  # End of contributions table
-
-        # Generate table for accounts
-        html_content += f"""
-                <h3>Accounts</h3>
-                <table class='{table_class}'>
-                    <thead>
-                        <tr><th>Type</th><th>Account Name</th><th>Balance</th></tr>
-                    </thead>
-                    <tbody>
-        """
-
-        accounts_data = parent.get("accounts", {})
-        for account_type, entries in accounts_data.items():
-            for entry in entries:
-                for account_name, balance in entry.items():
-                    formatted_balance = "{:,.2f}".format(balance)  # Format balance with commas
-                    html_content += f"<tr><td>{escape(account_type)}</td><td>{escape(account_name)}</td><td>{formatted_balance}</td></tr>\n"
-                    total_accounts_balance += balance  # Add to total accounts balance
-
-        # Display total account balances
-        formatted_total_accounts = "{:,.2f}".format(total_accounts_balance)
-        html_content += f"<tr><td colspan='2'><strong>Total Account Balances</strong></td><td><strong>{formatted_total_accounts}</strong></td></tr>\n"
-        html_content += "</tbody>\n</table>\n"  # End of accounts table
-
-        html_content += "</div>  <!-- End of hidden details section -->\n"  # End of parent section
-
+    # Start the parent's section
+    html_content = f"""
+        <button id="{parent_id}-button" class="collapsible" onclick="toggleCollapsible('{parent_id}-button', '{parent_id}-content')">{parent_name} Retirement</button>
+        <div id="{parent_id}-content" class="content">
+            <h3>Contributions</h3>
+            {create_contributions_table(parent.get("contributions", {}), table_class)}
+            <h3>Accounts</h3>
+            {create_accounts_table(parent.get("accounts", {}), table_class)}
+        </div>  <!-- End of hidden details section -->
+    """
     return html_content
+
+def create_contributions_table(contributions_data, table_class):
+    """Creates the HTML table for contributions.
+
+    Args:
+        contributions_data (dict): A dictionary of contributions data.
+        table_class (str): The CSS class to apply to the table.
+
+    Returns:
+        str: HTML for the contributions table.
+    """
+    html_content = f"""
+        <table class='{table_class}'>
+            <thead>
+                <tr><th>Type</th><th>Contribution</th><th>Amount</th></tr>
+            </thead>
+            <tbody>
+    """
+    total_contributions = 0
+
+    for contribution_type, entries in contributions_data.items():
+        for entry in entries:
+            for contribution, amount in entry.items():
+                stripped_contribution = format_contribution_name(contribution)
+                formatted_amount = "{:,.2f}".format(amount)
+                html_content += f"<tr><td>{escape(contribution_type)}</td><td>{escape(stripped_contribution)}</td><td>{formatted_amount}</td></tr>\n"
+                total_contributions += amount
+
+    formatted_total_contributions = "{:,.2f}".format(total_contributions)
+    html_content += f"<tr><td colspan='2'><strong>Total Contributions</strong></td><td><strong>{formatted_total_contributions}</strong></td></tr>\n"
+    html_content += "</tbody>\n</table>\n"  # End of contributions table
+    return html_content
+
+def create_accounts_table(accounts_data, table_class):
+    """Creates the HTML table for accounts.
+
+    Args:
+        accounts_data (dict): A dictionary of accounts data.
+        table_class (str): The CSS class to apply to the table.
+
+    Returns:
+        str: HTML for the accounts table.
+    """
+    html_content = f"""
+        <table class='{table_class}'>
+            <thead>
+                <tr><th>Type</th><th>Account Name</th><th>Balance</th></tr>
+            </thead>
+            <tbody>
+    """
+    total_accounts_balance = 0
+
+    for account_type, entries in accounts_data.items():
+        for entry in entries:
+            for account_name, balance in entry.items():
+                formatted_balance = "{:,.2f}".format(balance)
+                html_content += f"<tr><td>{escape(account_type)}</td><td>{escape(account_name)}</td><td>{formatted_balance}</td></tr>\n"
+                total_accounts_balance += balance
+
+    formatted_total_accounts = "{:,.2f}".format(total_accounts_balance)
+    html_content += f"<tr><td colspan='2'><strong>Total Account Balances</strong></td><td><strong>{formatted_total_accounts}</strong></td></tr>\n"
+    html_content += "</tbody>\n</table>\n"  # End of accounts table
+    return html_content
+
+def format_contribution_name(contribution):
+    """Formats the contribution name to be more user-friendly.
+
+    Args:
+        contribution (str): The original contribution name.
+
+    Returns:
+        str: The formatted contribution name.
+    """
+    return contribution.replace("spouse1_", "").replace("spouse2_", "").replace("retirement_", "").replace("contribution_", "").replace("_", " ").title()
+
 
 def generate_friendly_name(scenario_file):
     """Generate a user-friendly name for the scenario file."""
-    parts = scenario_file.replace('.html', '').split('_')
-    
-    # Example of creating a friendly name
-    location = parts[0].replace('sf', 'San Francisco').replace('mn', 'Minnesota').capitalize()
-    names = ' & '.join(part.capitalize() for part in parts[1:3])  # Example: "Hav & Jason"
-    work_status = parts[2].replace('-', ' ').capitalize()  # "Retired Work", etc.
-    ownership = parts[3].replace('public', 'Public').replace('own', 'Own').replace('private', 'Private').capitalize()
+    if not scenario_file.endswith('.html'):
+        raise ValueError("The scenario file must end with '.html'.")
+
+    parts = scenario_file[:-5].split('_')  # Remove '.html' and split by '_'
+
+    # Check if we have enough parts for our expected format
+    if len(parts) < 4:
+        raise ValueError("Scenario file does not have enough parts to generate a friendly name.")
+
+    location = format_location(parts[0])
+    names = format_names(parts[1:3])  # Expecting at least two names
+    work_status = format_work_status(parts[2])
+    ownership = format_ownership(parts[3])
 
     # Create a user-friendly description
     friendly_name = f"{names} in {location}, {work_status} ({ownership})"
     return friendly_name
 
+def format_location(code):
+    """Formats the location code to a friendly name."""
+    return code.replace('sf', 'San Francisco').replace('mn', 'Minnesota').capitalize()
+
+def format_names(name_parts):
+    """Formats the names to a user-friendly string."""
+    return ' & '.join(part.capitalize() for part in name_parts)
+
+def format_work_status(status):
+    """Formats the work status to a user-friendly string."""
+    return status.replace('-', ' ').capitalize()
+
+def format_ownership(ownership_code):
+    """Formats the ownership code to a user-friendly string."""
+    return ownership_code.replace('public', 'Public').replace('own', 'Own').replace('private', 'Private').capitalize()
 
 # Helper function to check the viability status
 def check_viability_status(html_content):
-    soup = BeautifulSoup(html_content, 'html.parser')
-    status_element = soup.find('h4', class_='scenario-status')
+    """Check the viability status from the given HTML content.
 
-    # Check if status_element is found
-    if status_element is None:
-        logging.warning("Status element not found. Returning 'unknown'.")
+    Args:
+        html_content (str): The HTML content to parse.
+
+    Returns:
+        str: 'viable', 'not-viable', or 'unknown' based on the status found.
+    """
+    try:
+        soup = BeautifulSoup(html_content, 'html.parser')
+        status_element = soup.find('h4', class_='scenario-status')
+
+        # Check if status_element is found
+        if status_element is None:
+            logging.warning("Status element not found. Returning 'unknown'.")
+            return 'unknown'
+
+        # Ensure status_element is a Tag
+        if isinstance(status_element, Tag):
+            class_list = status_element.get('class', [])
+            if isinstance(class_list, list):
+                if 'viable' in class_list:
+                    return 'viable'
+                elif 'not-viable' in class_list:
+                    return 'not-viable'
+                else:
+                    logging.warning("No recognized status class found in the class list. Returning 'unknown'.")
+                    return 'unknown'
+            else:
+                logging.warning(f"Unexpected class attribute type: {type(class_list)}. Returning 'unknown'.")
+                return 'unknown'
+        else:
+            logging.warning(f"Unexpected element type: {type(status_element)}. Returning 'unknown'.")
+            return 'unknown'
+
+    except Exception as e:
+        logging.error(f"Error while checking viability status: {e}")
         return 'unknown'
 
-    # Ensure status_element is a Tag and not a NavigableString or other type
-    if isinstance(status_element, Tag):
-        class_list = status_element.get('class', [])
-        
-        # Ensure class_list is a list before performing 'in' checks
-        if isinstance(class_list, list):
-            return 'viable' if 'viable' in class_list else 'not-viable' if 'not-viable' in class_list else 'unknown'
-        else:
-            logging.warning(f"Unexpected class attribute type: {type(class_list)}. Returning 'unknown'.")
-    else:
-        logging.warning(f"Unexpected element type: {type(status_element)}. Returning 'unknown'.")
+def extract_attributes_from_filename(filename, name_lookup, work_status_lookup, location_lookup, ownership_type_lookup, school_type_lookup):
+    """Extracts attributes from a scenario filename.
 
-    logging.warning("No recognized status class found. Returning 'unknown'.")
-    return 'unknown'
+    Args:
+        filename (str): The filename to parse.
+        name_lookup (dict): A mapping from short names to full names.
+        work_status_lookup (dict): A mapping for work status.
+        location_lookup (dict): A mapping for location codes.
+        ownership_type_lookup (dict): A mapping for ownership types.
+        school_type_lookup (dict): A mapping for school types.
 
-# Define dictionaries for name and work status lookups
-name_lookup = {
-    'hav': 'Havilah',
-    'jason': 'Jason',
-}
-
-work_status_lookup = {
-    'retired': 'Retired',
-    'work': 'Working',
-    'work-retired': 'Working & Retired',
-    'retired-retired': 'Retired',
-    'work-work': 'Working',
-    'retired-work': 'Retired & Working',
-}
-
-# Mapping for location names
-location_lookup = {
-    'mn': 'Minnesota',
-    'sf': 'San Francisco',
-}
-
-ownership_type_lookup = {
-    'own': 'Own House',
-    'rent': 'Rent',
-}
-
-school_type_lookup = {
-    'public': 'Public HS',
-    'private': 'Private HS',
-    'pripub': 'Public-Private HS',
-}
-
-def extract_attributes_from_filename(filename, lookup):
+    Returns:
+        tuple: A tuple containing:
+            - location (str): The location code (e.g., 'mn', 'sf').
+            - full_names (list): List of full names corresponding to the extracted names.
+            - work_status (str): The work status extracted from the filename.
+            - simplified_name (str): A simplified name combining ownership and school type.
+            - report_name_suffix (str): Additional content for the report name, if any.
+    
+    Raises:
+        ValueError: If the filename does not contain enough parts.
+    """
     # Remove the extension
     name_parts = filename[:-5].split('_')
 
-    # Check that we have enough parts
+    # Ensure sufficient parts are present
     if len(name_parts) < 5:
-        raise ValueError("Filename does not have enough parts to unpack.")
+        raise ValueError(f"Filename '{filename}' does not have enough parts to unpack.")
 
     # Extract relevant parts
     location = name_parts[1]  # 'mn' or 'sf'
     names = name_parts[2:4]  # ['hav', 'jason']
     work_status = name_parts[4]  # 'work-retired'
     
-    # Adjust ownership_type and school_type, while capturing extra content if available
+    # Extract ownership type and school type, handling optional parts
     ownership_type = name_parts[5] if len(name_parts) > 5 else ""
     school_type = name_parts[6] if len(name_parts) > 6 else ""  # 'public' or similar
 
@@ -1339,16 +1380,17 @@ def extract_attributes_from_filename(filename, lookup):
     extra_content = "_".join(name_parts[7:]) if len(name_parts) > 7 else ""  # Join any extra parts into a single string
 
     # Generate full names using the lookup
-    full_names = [lookup['name_lookup'].get(name, name).title() for name in names]
+    full_names = [name_lookup.get(name, name).title() for name in names]
     
-    friendly_ownership = lookup['ownership_type_lookup'].get(ownership_type, ownership_type.title())
-    friendly_school = lookup['school_type_lookup'].get(school_type, school_type.title())
+    # Map ownership and school types to friendly names
+    friendly_ownership = ownership_type_lookup.get(ownership_type, ownership_type.title())
+    friendly_school = school_type_lookup.get(school_type, school_type.title())
     
+    # Construct the simplified name
+    simplified_name = f"{friendly_ownership} & {friendly_school}".strip()
+
     # Include extra content in the report name if available
     report_name_suffix = f" ({extra_content})" if extra_content else ""
-    
-    # Combine for the simplified name
-    simplified_name = f"{friendly_ownership} & {friendly_school}".strip()
 
     # Add the report name suffix to the simplified name if it exists
     if report_name_suffix:
@@ -1358,24 +1400,54 @@ def extract_attributes_from_filename(filename, lookup):
 
 
 def process_html_file(file_path, config):
-    """Process an HTML file to extract relevant attributes."""
+    """Process an HTML file to extract relevant attributes.
+
+    Args:
+        file_path (str): The path to the HTML file.
+        config (dict): A configuration dictionary containing lookup mappings.
+
+    Returns:
+        tuple: A tuple containing:
+            - html_content (str): The content of the HTML file.
+            - location (str): The location code extracted from the filename.
+            - full_names (list): List of full names corresponding to the extracted names.
+            - work_status (str): The work status extracted from the filename.
+            - simplified_name (str): A simplified name combining ownership and school type.
+            - report_name_suffix (str): Additional content for the report name, if any.
+    """
+    # Check if the file exists
+    if not os.path.isfile(file_path):
+        logging.error(f"File not found: {file_path}")
+        return ""
+
+    # Read the HTML content from the file
     with open(file_path, 'r', encoding='utf-8') as f:
         html_content = f.read()
 
     # Extract attributes from the filename
     try:
-        location, full_names, work_status, simplified_name, report_name_suffix = extract_attributes_from_filename(os.path.basename(file_path),config['lookup'])
+        # Pass specific lookup dictionaries
+        location, full_names, work_status, simplified_name, report_name_suffix = extract_attributes_from_filename(
+            os.path.basename(file_path),
+            config['name_lookup'],
+            config['work_status_lookup'],
+            config['location_lookup'],
+            config['ownership_type_lookup'],
+            config['school_type_lookup']
+        )
         return html_content, location, full_names, work_status, simplified_name, report_name_suffix
     except ValueError as e:
-        print(f"Skipping file {file_path}: {e}")
-        return None
+        logging.warning(f"Skipping file {file_path}: {e}")
+        return "", "", [], "", "", ""
 
-def generate_navigation(toc_content):
+
+def generate_navigation(toc_content, config):
     """Generate structured navigation HTML with collapsible sections and dynamic parent names in work statuses."""
-    html_content = "<nav class='site-navigation'>\n"
+    html_content = StringIO()  # Use StringIO for efficient string concatenation
+    html_content.write("<nav class='site-navigation'>\n")
     
     # Add a div container for flexbox layout for buttons
-    html_content += "<div class='nav-buttons'>\n"
+    html_content.write("<div class='nav-buttons'>\n")
 
     for viability in toc_content:
         formatted_viability = viability.replace('-', ' ').title()
@@ -1386,25 +1458,23 @@ def generate_navigation(toc_content):
         active_class = "active" if viability == "viable" else ""
 
         # Add collapsible button inside the nav-buttons div for flexbox layout
-        html_content += f"<button id='{button_id}' type='button' class='collapsible nav-collapsible {active_class}' onclick='toggleCollapsible(\"{button_id}\", \"{section_id}\", true)'>{formatted_viability}</button>\n"
+        html_content.write(f"<button id='{button_id}' type='button' class='collapsible nav-collapsible {active_class}' onclick='toggleCollapsible(\"{button_id}\", \"{section_id}\", true)'>{formatted_viability}</button>\n")
     
     # Close the div for buttons
-    html_content += "</div>\n"
+    html_content.write("</div>\n")
 
-    # Now add the content sections that will be collapsible
+    # Add collapsible content sections
     for viability in toc_content:
         section_id = f"{viability}-content"
+        max_height_style = "max-height:initial; overflow:hidden;" if viability == "viable" else "max-height:0; overflow:hidden;"
 
-        # Set the 'Viable' section to be visible by default
-        if viability == "viable":
-            html_content += f"<ul id='{section_id}' class='viability-list collapsible-content nav-collapsible-content' style='max-height:initial; overflow:hidden;'>\n"  # Make it visible
-        else:
-            html_content += f"<ul id='{section_id}' class='viability-list collapsible-content nav-collapsible-content' style='max-height:0; overflow:hidden;'>\n"  # Hidden by default
+        html_content.write(f"<ul id='{section_id}' class='viability-list collapsible-content nav-collapsible-content' style='{max_height_style}'>\n")
 
         for location, reports in toc_content[viability].items():
             # Adding class for location items
-            html_content += f"  <li class='location-item'>{location_lookup.get(location, location).title()}\n"
-            html_content += "    <ul class='work-status-list'>\n"  # Work status list with its class
+            location_name = config['location_lookup'].get(location, location).title()  # Use config to get location names
+            html_content.write(f"  <li class='location-item'>{location_name}\n")
+            html_content.write("    <ul class='work-status-list'>\n")  # Work status list with its class
 
             # Organize reports by work status
             work_status_dict = {}
@@ -1423,128 +1493,30 @@ def generate_navigation(toc_content):
                 else:
                     friendly_status = work_status  # Fallback if work status isn't found
 
-                if friendly_status not in work_status_dict:
-                    work_status_dict[friendly_status] = []
-                work_status_dict[friendly_status].append((file, simplified_name))
+                work_status_dict.setdefault(friendly_status, []).append((file, simplified_name))
 
             for friendly_status, items in work_status_dict.items():
                 # Add work-status-item and report-list classes
-                html_content += f"      <li class='work-status-item'>{friendly_status}<ul class='report-list'>\n"
+                html_content.write(f"      <li class='work-status-item'>{friendly_status}<ul class='report-list'>\n")
 
                 for file, simplified_name in items:
+                    # Remove .html suffix from file for the link
+                    file_without_extension = file.replace('.html', '')  # Strip .html
                     # Add report-item class to list item and maintain anchor for the report
-                    html_content += f"        <li class='report-item'><a href='{file}'>{simplified_name}</a></li>\n"
+                    html_content.write(f"        <li class='report-item'><a href='/view_report/{file_without_extension}'>{simplified_name}</a></li>\n")
+                
+                html_content.write("      </ul></li>\n")  # Close work status item
 
-                html_content += "      </ul></li>\n"  # Close work status item
+            html_content.write("    </ul>\n")  # Close work status list
+            html_content.write("  </li>\n")  # Close location item
 
-            html_content += "    </ul>\n"  # Close work status list
-            html_content += "  </li>\n"  # Close location item
+        html_content.write("</ul>\n")  # Close collapsible section
 
-        html_content += "</ul>\n"  # Close collapsible section
-
-    html_content += "</nav>\n"
-    return html_content
-
-
-
-def _generate_navigation(toc_content):
-    """Generate structured navigation HTML with collapsible sections."""
-    html_content = "<nav class='site-navigation'>\n"
-    
-    # Add a div container for flexbox layout for buttons
-    html_content += "<div class='nav-buttons'>\n"
-
-    for viability in toc_content:
-        formatted_viability = viability.replace('-', ' ').title()
-        section_id = f"{viability}-content"
-        button_id = f"{viability}-button"
-
-        # Check if the current viability is "viable" to add the active class
-        active_class = "active" if viability == "viable" else ""
-
-        # Add collapsible button inside the nav-buttons div for flexbox layout
-        html_content += f"<button id='{button_id}' type='button' class='collapsible nav-collapsible {active_class}' onclick='toggleCollapsible(\"{button_id}\", \"{section_id}\", true)'>{formatted_viability}</button>\n"
-    
-    # Close the div for buttons
-    html_content += "</div>\n"
-
-    # Now add the content sections that will be collapsible
-    for viability in toc_content:
-        section_id = f"{viability}-content"
-
-        # Set the 'Viable' section to be visible by default
-        if viability == "viable":
-            html_content += f"<ul id='{section_id}' class='viability-list collapsible-content nav-collapsible-content' style='max-height:initial; overflow:hidden;'>\n"  # Make it visible
-        else:
-            html_content += f"<ul id='{section_id}' class='viability-list collapsible-content nav-collapsible-content' style='max-height:0; overflow:hidden;'>\n"  # Hidden by default
-
-        for location, reports in toc_content[viability].items():
-            # Adding class for location items
-            html_content += f"  <li class='location-item'>{location_lookup.get(location, location).title()}\n"
-            html_content += "    <ul class='work-status-list'>\n"  # Work status list with its class
-
-            # Organize reports by work status
-            work_status_dict = {}
-            for file, simplified_name, _, work_status, report_name_suffix in reports:
-                if work_status not in work_status_dict:
-                    work_status_dict[work_status] = []
-                work_status_dict[work_status].append((file, simplified_name))
-
-            for work_status, items in work_status_dict.items():
-                # Add work-status-item and report-list classes
-                friendly_status = work_status_lookup.get(work_status, work_status).title()
-                html_content += f"      <li class='work-status-item'>{friendly_status}<ul class='report-list'>\n"
-
-                for file, simplified_name in items:
-                    # Add report-item class to list item and maintain anchor for the report
-                    html_content += f"        <li class='report-item'><a href='{file}'>{simplified_name}</a></li>\n"
-
-                html_content += "      </ul></li>\n"  # Close work status item
-
-            html_content += "    </ul>\n"  # Close work status list
-            html_content += "  </li>\n"  # Close location item
-
-        html_content += "</ul>\n"  # Close collapsible section
-
-    html_content += "</nav>\n"
-    return html_content
+    html_content.write("</nav>\n")
+    return html_content.getvalue()  # Return the concatenated string
 
 
-def parse_filename(filename): 
-    """Parse the filename to generate a simplified and user-friendly title."""
-    
-    # Determine housing type
-    housing_type = "Own House" if "_own_" in filename else "Rent House"
-    
-    # Determine school type(s)
-    if "pripub" in filename:
-        school_type = "Private & Public HS Blend"  # Updated to use the new term
-    elif "private" in filename:
-        school_type = "Private HS"
-    elif "public" in filename:
-        school_type = "Public HS"
-    else:
-        school_type = "Unknown School Type"
-    
-    # Extract years
-    years = None
-    if "3yrs" in filename:
-        years = "3 Years"
-    elif "4yrs" in filename:
-        years = "4 Years"
-    elif "6yrs" in filename:
-        years = "6 Years"
-    
-    # Construct the final simplified name
-    simplified_name = f"{housing_type} ({school_type})"
-    
-    if years:
-        simplified_name += f" - {years}"
-    
-    return simplified_name
-
-
-def generate_index(html_dir, config):
+def _generate_index(html_dir, config):
     """Process function to generate the index report."""
     html_files = get_html_files(html_dir)
 
@@ -1555,7 +1527,7 @@ def generate_index(html_dir, config):
     toc_content = organize_content(html_files, html_dir, config)
 
     # Generate final HTML content
-    final_html_content = generate_html_structure(toc_content)
+    final_html_content = generate_html_structure(toc_content, config)
 
     # Write the HTML content to a file
     output_file = os.path.join(html_dir, "index.html")
@@ -1564,9 +1536,22 @@ def generate_index(html_dir, config):
 
 
 def get_html_files(html_dir):
-    """Get a list of HTML files in the specified directory."""
-    all_files = os.listdir(html_dir)
-    return [f for f in all_files if f.endswith('.html') and f.startswith('scenario')]
+    """Get a list of HTML files in the specified directory that start with 'scenario'."""
+    try:
+        # Use os.scandir for better performance and information
+        with os.scandir(html_dir) as entries:
+            html_files = [entry.name for entry in entries if entry.is_file() and entry.name.endswith('.html') and entry.name.startswith('scenario')]
+        return html_files
+    except FileNotFoundError:
+        print(f"Error: The directory '{html_dir}' does not exist.")
+        return []
+    except PermissionError:
+        print(f"Error: Permission denied for accessing the directory '{html_dir}'.")
+        return []
+    except Exception as e:
+        print(f"An unexpected error occurred: {e}")
+        return []
+    
 
 def organize_content(html_files, html_dir, config):
     """Organize content from HTML files into a structured format."""
@@ -1594,6 +1579,10 @@ def organize_content(html_files, html_dir, config):
                 logging.warning(f"Unexpected viability status '{viability}' for file {file_path}. Defaulting to 'all'.")
                 viability = 'all'  # Default to 'all' if the status is unrecognized
 
+            # Ensure viability key always refers to a dictionary
+            if viability not in toc_content:
+                toc_content[viability] = {}  # If viability was missing, this would ensure it's always a dictionary
+
             # Initialize location in toc_content if it doesn't exist
             if location not in toc_content[viability]:
                 toc_content[viability][location] = []
@@ -1612,64 +1601,92 @@ def organize_content(html_files, html_dir, config):
     return toc_content
 
 
-def process_reports(html_dir, config):
-    """Process function to gather report data without generating HTML."""
+def process_reports(html_dir: Path, config: dict[str, Any]) -> Optional[str]:
+    """
+    Process function to gather report data without generating HTML.
+
+    Args:
+        html_dir (Path): Directory containing HTML files.
+        config (dict[str, Any]): Configuration options.
+
+    Returns:
+        Optional[str]: Navigation data generated from the report files, or None if no files are found.
+    """
+    # Fetch HTML files from the directory
     html_files = get_html_files(html_dir)
 
+    # Check if any HTML files were found
     if not html_files:
-        print(f"No scenario HTML files found in {html_dir}.")
-        return
+        logging.warning(f"No scenario HTML files found in {html_dir}.")
+        return None
 
+    # Organize the content from the HTML files based on viability and location
     toc_content = organize_content(html_files, html_dir, config)
-    
-    # Generate navigation data
-    navigation_data = generate_navigation(toc_content)
-    
-    # Instead of writing to a file, return or print the navigation data
+
+    # Generate navigation data based on the organized content
+    navigation_data = generate_navigation(toc_content, config)
+
+    # Return the navigation data instead of writing it to a file
+    logging.info("Navigation data successfully generated.")
     return navigation_data
 
-def generate_html_structure(toc_content):
-    """Generate the HTML structure from the organized content."""
-    html_content = """
-    <html>
+
+def generate_html_structure(toc_content: dict[str, Any], config: dict[str, Any]) -> str:
+    """Generate the HTML structure from the organized content.
+
+    Args:
+        toc_content (dict[str, Any]): Table of contents content organized by viability and location.
+        config (dict[str, Any]): Configuration options for the report.
+
+    Returns:
+        str: The complete HTML structure as a string.
+    """
+    
+    # Generate the dynamic title from the config or use a default
+    title = config.get("report_title", "Financial Scenario Summary Report")
+
+    # Start building the HTML content
+    html_content = f"""
     <!DOCTYPE html>
     <html lang="en">
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Financial Scenario Summary Report</title>
+        <title>{title}</title>
         <link rel="stylesheet" href="../static/css/styles.css">
-        <script src="../static/js/toggleVisibility.js"></script>
+        <script src="../static/js/toggleVisibility.js" defer></script>
     </head>
     <body>
     """
     
-    html_content += generate_navigation(toc_content)
-    
+    # Generate navigation and append to the HTML content
+    html_content += generate_navigation(toc_content, config)
+
+    # Close the HTML structure
     html_content += """
     </body>
     </html>
     """
+    
     return html_content
 
 
-def write_html_to_file(output_file, content):
-    """Write the generated HTML content to a specified file."""
-    with open(output_file, 'w', encoding='utf-8') as f:
-        f.write(content)
+def write_html_to_file(output_file: Union[str, Path], content: str) -> None:
+    """Write the generated HTML content to a specified file.
 
-def generate_scenario_html(scenario_title, scenario_content, navigation, output_file):
-    # Read the template file
-    with open('../templates/scenario_template.html', 'r', encoding='utf-8') as template_file:
-        template = template_file.read()
+    Args:
+        output_file (Union[str, Path]): The path to the output file where HTML content will be written.
+        content (str): The HTML content to write to the file.
 
-    # Replace placeholders with actual values
-    html_content = template.replace('{{ title }}', scenario_title) \
-                           .replace('{{ navigation }}', navigation) \
-                           .replace('{{ scenario_title }}', scenario_title) \
-                           .replace('{{ scenario_content }}', scenario_content)
+    Raises:
+        ValueError: If the content is empty.
+    """
+    if not content:
+        raise ValueError("Content to write cannot be empty.")
 
-    # Write the generated HTML to a file
-    with open(output_file, 'w', encoding='utf-8') as output:
-        output.write(html_content)
-    print(f"Generated HTML for {scenario_title} at {output_file}")
+    try:
+        with open(output_file, 'w', encoding='utf-8') as f:
+            f.write(content)
+        logging.info(f"Successfully wrote to {output_file}")
+    except IOError as e:
+        logging.error(f"Error writing to file {output_file}: {e}")

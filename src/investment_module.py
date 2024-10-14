@@ -1,14 +1,19 @@
-import sys  # import the sys module
+import sys
 from pathlib import Path
 import json
 import logging
 import argparse
 from collections import namedtuple
-import report_html_generator
-from utils import format_currency
 from typing import Tuple, Union, List, Dict, Optional
-from utils import log_data
-import utils
+
+# Try to import with relative paths for Flask app
+try:
+    from . import report_html_generator
+    from . import utils  
+except ImportError:
+    # Fallback to absolute import if running as a standalone script
+    import report_html_generator
+    import utils
 
 CAPITAL_GAIN_EXCLUSION = 500000
 
@@ -22,8 +27,8 @@ def load_configuration() -> Tuple[Dict, Dict]:
     try:
         scenarios_data, general_config = parse_and_load_config()
         logging.info("Configuration and general configuration loaded successfully.")
-        log_data(scenarios_data, title="Loaded Scenarios Data")
-        log_data(general_config, title="General Configuration Data")
+        utils.log_data(scenarios_data, title="Loaded Scenarios Data")
+        utils.log_data(general_config, title="General Configuration Data")
         return scenarios_data, general_config
     except Exception as e:
         logging.exception("Error loading configuration")
@@ -592,7 +597,7 @@ def calculate_yearly_income(config_data, tax_rate):
         "Spouse 2 After-Tax Investment Income": spouse2_income_after_posttax_items,
         "Yearly Net Income": yearly_income
     }
-    log_data(yearly_data, title="<calculate_yearly_income> Yearly Data")
+    utils.log_data(yearly_data, title="<calculate_yearly_income> Yearly Data")
     return yearly_data
 
 def calculate_annual_surplus(monthly_surplus):
@@ -650,8 +655,8 @@ def can_cover_school_expenses_per_year(annual_surplus, school_expenses):
     logging.debug("Entering <function ")
 
     logging.info(f"Checking if yearly surplus can cover school expenses")
-    log_data(annual_surplus, "annual_surplus")
-    log_data(school_expenses, "school_expenses")
+    utils.log_data(annual_surplus, "annual_surplus")
+    utils.log_data(school_expenses, "school_expenses")
 
     # Ensure lists have the same length
     if len(annual_surplus) != len(school_expenses):
@@ -762,7 +767,7 @@ def calculate_total_monthly_expenses(config_data):
     }
     total_monthly_expenses = sum(monthly_expenses_breakdown.values())
     logging.info(f"{'Total monthly expenses:':<27} {format_currency(total_monthly_expenses)}")
-    log_data(monthly_expenses_breakdown, "Monthly Expenses Breakdown")
+    utils.log_data(monthly_expenses_breakdown, "Monthly Expenses Breakdown")
     
     return total_monthly_expenses, monthly_expenses_breakdown
 
@@ -883,7 +888,7 @@ def calculate_expenses_not_factored_in_report(config_data):
     monthly_expenses = {f"Monthly {key}": int(value / 12) for key, value in expenses_not_factored_in_report.items()}
     expenses_not_factored_in_report.update(monthly_expenses)
     # logging.info("-" * 70)  # Use a line of dashes or other separator
-    log_data(expenses_not_factored_in_report, title="Expenses Not Factored In Report")
+    utils.log_data(expenses_not_factored_in_report, title="Expenses Not Factored In Report")
     logging.debug("Exiting <function ")
     return expenses_not_factored_in_report
 
@@ -999,7 +1004,7 @@ def calculate_investment_values(config_data, annual_surplus):
         "future_retirement_value_contrib": future_retirement_value_contrib
     }
 
-    log_data(investment_values, title="Future Value", format_as_currency=True)
+    utils.log_data(investment_values, title="Future Value", format_as_currency=True)
     return investment_values
 
 def calculate_house_data(current_house, config_data, new_house):
@@ -1166,7 +1171,7 @@ def calculate_house_info(config_data):
         logging.warning("house_info is None. Using an empty dictionary for logging.")
         house_info = {}
 
-    log_data(house_info, title="House Info")
+    utils.log_data(house_info, title="House Info")
     logging.debug("Exiting <function calculate_house_info>")
 
     return current_house, new_house, house_info
@@ -1250,7 +1255,7 @@ def calculate_scenario_info(config_data, calculated_data):
         "Home Tenure": config_data["home_tenure"],
         "# of Years": config_data["years"],
     }
-    log_data(scenario_info, title="Scenario Summary")
+    utils.log_data(scenario_info, title="Scenario Summary")
     return scenario_info
 
 def calculate_yearly_income_report(config_data, calculated_data):
@@ -1282,7 +1287,7 @@ def calculate_yearly_income_report(config_data, calculated_data):
         "Annual Rent": config_data.get("annual_rent", 0),
         "Annual Additional Insurance": config_data.get("additional_insurance", 0),
     }
-    log_data(yearly_income_report_data, title="Annual Income")
+    utils.log_data(yearly_income_report_data, title="Annual Income")
     return yearly_income_report_data
 
 
@@ -1738,9 +1743,9 @@ def process_scenario(scenario_name, scenarios_data, reports_dir, scenarios_dir="
 
     # Safely get team data and log
     logging.debug("Local Scenario Objects")
-    log_data(config_data.get('BASEBALL_TEAM', {}), "Baseball Team")
-    log_data(config_data.get('SKI_TEAM', {}), "Ski Team")
-    log_data(config_data.get('highschool_expenses', {}), "High School Expenses")
+    utils.log_data(config_data.get('BASEBALL_TEAM', {}), "Baseball Team")
+    utils.log_data(config_data.get('SKI_TEAM', {}), "Ski Team")
+    utils.log_data(config_data.get('highschool_expenses', {}), "High School Expenses")
 
     summary_data = generate_report(config_data, scenario_name)
     logging.info("-" * 70)  # Use a line of dashes or other separator

@@ -16,7 +16,7 @@ def main():
         # Load the logging level from the configuration
         logging_level = utils.load_logging_level()  # Assume you have a function to get this
 
-        setup_logging(scenario_log_file_name, logs_dir, logging_level)
+        utils.setup_logging(main_log_file=None, scenario_log_file=scenario_log_file_name, log_dir=logs_dir, log_level=logging_level)
 
         validate_input_file(input_file)
         
@@ -29,13 +29,6 @@ def main():
 
     except Exception as e:
         handle_error(e)
-
-def setup_logging(scenario_log_file_name: Path, logs_dir: Path, logging_level: str):
-    """Set up logging for the script."""
-    level = getattr(logging, logging_level.upper(), logging.DEBUG)  # Default to DEBUG if not found
-    logging.basicConfig(filename=scenario_log_file_name, level=level,
-                        format='%(asctime)s - %(levelname)s - %(message)s')
-    logging.info("Starting script execution.")
 
 def validate_input_file(input_file: Path):
     """Validate the existence of the input file."""

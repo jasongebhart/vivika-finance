@@ -2,14 +2,23 @@ import os
 import subprocess
 import json
 from pathlib import Path
-import investment_module
-import report_html_generator
 import logging
 import concurrent.futures
-import utils
+
+# Try to import with relative paths for Flask app
+try:
+    # from .investment_module import some_function  # Replace `some_function` with actual functions you need
+    from .report_html_generator import generate_html_structure
+    from .utils import format_currency
+except ImportError:
+    # Fallback to absolute import if running as a standalone script
+    import investment_module
+    import report_html_generator
+    import utils
+
 
 # Define constants for magic strings
-GET_FINANCES_SCRIPT = 'getFinances.py'
+GET_FINANCES_SCRIPT = Path('src/getFinances.py')
 INDEX_FILE = 'index.html'
 NAVIGATION_PLACEHOLDER = "<!-- INSERT NAVIGATION HERE -->"
 JSON_SUFFIX = '.json'
@@ -39,7 +48,7 @@ def run_report_for_json(json_file_path: Path):
     """Runs getFinances.py for the given JSON file."""
     logging.info(f"Running report for {json_file_path}")
     try:
-        result = subprocess.run([GET_FINANCES_SCRIPT, str(json_file_path)], capture_output=True, text=True)
+        result = subprocess.run(['python', str(GET_FINANCES_SCRIPT), str(json_file_path)], capture_output=True, text=True)
 
         if result.returncode != 0:
             logging.error(f"Error generating report for {json_file_path}: {result.stderr}")
@@ -57,15 +66,6 @@ def load_configuration(config_path: Path) -> dict:
     try:
         with config_path.open('r') as f:
             config = json.load(f)
-        
-        # Load lookup dictionaries
-        config['lookup'] = {
-            'name_lookup': config['lookup'].get('name_lookup', {}),
-            'work_status_lookup': config['lookup'].get('work_status_lookup', {}),
-            'location_lookup': config['lookup'].get('location_lookup', {}),
-            'ownership_type_lookup': config['lookup'].get('ownership_type_lookup', {}),
-            'school_type_lookup': config['lookup'].get('school_type_lookup', {})
-        }
         return config
     except json.JSONDecodeError as e:
         logging.error(f"Invalid JSON in configuration file: {e}")
@@ -87,7 +87,7 @@ def get_valid_json_files(json_dir: Path, excluded_files: set) -> list:
         if f.suffix == JSON_SUFFIX and f.name not in excluded_files and not f.name.startswith(EXCLUDED_PREFIX)
     ]
 
-def update_navigation_in_reports(html_files: list, reports_dir: Path, toc_content: dict):
+def update_navigation_in_reports(html_files: list, reports_dir: Path, toc_content: dict, config):
     """Inject navigation into each scenario report."""
     for html_file in html_files:
         file_path = reports_dir / html_file
@@ -95,22 +95,15 @@ def update_navigation_in_reports(html_files: list, reports_dir: Path, toc_conten
             file_content = file.read()
 
         updated_content = file_content.replace(NAVIGATION_PLACEHOLDER, 
-                                                report_html_generator.generate_navigation(toc_content))
+                                                report_html_generator.generate_navigation(toc_content, config))
 
         with file_path.open('w', encoding='utf-8') as file:
             file.write(updated_content)
         logging.info(f"Updated navigation in: {file_path}")
 
-def setup_logging(logging_level: str):
-    """Setup logging configuration."""
-    level = getattr(logging, logging_level.upper(), logging.INFO)  # Default to INFO if not found
-    logging.basicConfig(level=level,
-                        format='%(asctime)s - %(levelname)s - %(message)s')
-    logging.info("Logging is set up.")
-
 def main():
     """Main entry point of the script."""
-    config_path = Path('./config.json')
+    config_path = Path('./src/config.json')
 
     try:
         config = load_configuration(config_path)
@@ -118,13 +111,13 @@ def main():
         return  # Exit if config loading failed
 
     # Setup directories
-    json_dir = Path(config.get('json_dir', '../scenarios')).resolve()
-    reports_dir = Path(config.get('reports_dir', '../reports')).resolve()
+    json_dir = Path(config.get('json_dir', './scenarios')).resolve()
+    reports_dir = Path(config.get('reports_dir', './reports')).resolve()
     setup_directories(json_dir, reports_dir)
 
-    # Configure logging
+    # Configure logging using utils
     logging_level = config.get('logging_level', 'INFO')  # Default to INFO if not specified
-    setup_logging(logging_level)
+    utils.setup_logging(main_log_file="generate_reports.log", scenario_log_file=None, log_dir=utils.LOGS_DIR, log_level=logging_level)
 
     logging.info(f"Resolved reports directory: {reports_dir}")
     logging.info(f"Resolved logs directory: {utils.LOGS_DIR.resolve()}")
@@ -145,13 +138,19 @@ def main():
     # Organize content and generate navigation
     toc_content = report_html_generator.organize_content(html_files, reports_dir, config)
 
+    # Generate the navigation HTML
+    navigation_html = report_html_generator.generate_navigation(toc_content, config)
+
     # Generate and write the index.html file
-    index_content = report_html_generator.generate_html_structure(toc_content)
-    report_html_generator.write_html_to_file(reports_dir / INDEX_FILE, index_content)
+    index_content = report_html_generator.generate_html_structure(toc_content, config)
+    index_content_with_navigation = index_content.replace(NAVIGATION_PLACEHOLDER, navigation_html)
+
+    # report_html_generator.write_html_to_file(reports_dir / INDEX_FILE, index_content)
+    report_html_generator.write_html_to_file(reports_dir / INDEX_FILE, index_content_with_navigation)
     logging.info(f"Index generated: {reports_dir / INDEX_FILE}")
 
     # Inject navigation into each scenario report
-    update_navigation_in_reports(html_files, reports_dir, toc_content)
+    update_navigation_in_reports(html_files, reports_dir, toc_content, config)
 
     logging.info("Reports generation completed. Check the reports directory for generated reports.")
 

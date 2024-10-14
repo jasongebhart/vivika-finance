@@ -5,7 +5,7 @@ import json
 import sys
 from typing import Tuple, Union, List, Dict, Optional
 
-def setup_logging(main_log_file=None, scenario_log_file=None, log_dir: Union[str, Path] = "logs", log_level=logging.INFO):
+def setup_logging(main_log_file=None, scenario_log_file=None, log_dir: Union[str, Path] = "logs", log_level: Union[str, int] = logging.INFO):
     """
     Sets up logging for both console and file handlers.
 
@@ -19,6 +19,9 @@ def setup_logging(main_log_file=None, scenario_log_file=None, log_dir: Union[str
         log_dir = Path(log_dir)
     
     log_dir.mkdir(parents=True, exist_ok=True)  # Create the log directory if it doesn't exist
+    
+    if isinstance(log_level, str):
+        log_level = getattr(logging, log_level.upper(), logging.INFO)  # Default to INFO if not found
     
     logger = logging.getLogger()
     logger.setLevel(log_level)
@@ -132,9 +135,9 @@ LOGS_DIR = Path('../logs').resolve()
 def format_currency(value):
     return f"${value:,.2f}"
 
-def load_logging_level() -> str:
-    """Load logging level from the configuration."""
-    config_path = Path('./config.json')
+def load_logging_level():
+    # Assuming the config file is in the src directory
+    config_path = Path(__file__).parent / 'config.json'  # Using __file__ to get the current script's directory
     with config_path.open('r') as f:
-        config = json.load(f)
-    return config.get('logging_level', 'DEBUG')  # Default to DEBUG if not found
+        config_data = json.load(f)
+        return config_data.get('logging_level', 'INFO')  # Default to 'INFO' if not found
