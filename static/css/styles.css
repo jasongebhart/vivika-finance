@@ -180,6 +180,10 @@ th {
     transition: max-height 0.3s ease-out;
 }
 
+.collapsible-section .content.open {
+    display: block;
+}
+
 .active, .collapsible:hover {
     background-color: #ccc;
 }
@@ -191,6 +195,10 @@ th {
     transition: max-height 0.2s ease-out;
     background-color: #f9f9f9;
     font-size: small;
+}
+
+.content.open {
+    display: block;
 }
 
 /* Tooltip container for net worth fields */

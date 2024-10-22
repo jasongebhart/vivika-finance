@@ -34,21 +34,6 @@ function toggleSectionVisibility(sectionId) {
 }
 
 
-function toggleCollapsible_old(buttonId, contentId) {
-    const content = document.getElementById(contentId);
-    const button = document.getElementById(buttonId);
-
-    if (content.style.maxHeight) {
-        // If the content is expanded, collapse it
-        content.style.maxHeight = null;
-        button.classList.remove('active');
-    } else {
-        // If the content is collapsed, expand it
-        content.style.maxHeight = content.scrollHeight + "px";
-        button.classList.add('active');
-    }
-}
-
 function toggleCollapsible(buttonId, contentId, isNavSection = false) {
     const content = document.getElementById(contentId);
     const button = document.getElementById(buttonId);
@@ -83,137 +68,613 @@ function toggleCollapsible(buttonId, contentId, isNavSection = false) {
     }
 }
 
-document.getElementById('loadJsonButton').addEventListener('click', function() {
-    const jsonFileInput = document.getElementById('jsonFile');
-    const file = jsonFileInput.files[0];
+document.addEventListener("DOMContentLoaded", () => {
+    // Add event listener to the load JSON button
+    document.getElementById('loadJsonButton').addEventListener('click', loadJsonFile);
+    // Event listener for adding a new investment
+    document.getElementById('addInvestmentBtn').addEventListener('click', addInvestment);
 
-    if (file) {
-        const reader = new FileReader();
-        reader.onload = function(e) {
-            try {
-                const jsonData = JSON.parse(e.target.result);
-
-                // Function to safely assign value if the element exists
-                function assignValue(fieldId, value) {
-                    const field = document.getElementById(fieldId);
-                    if (field) {
-                        field.value = value || ''; // Set to empty string if value is null/undefined
-                    }
-                }
-
-                // Populate form fields with JSON data
-                assignValue('scenarioName', jsonData.scenarioName);
-                assignValue('scenarioYears', jsonData.scenarioYears);
-                assignValue('spouse1YearlyIncomeBase', jsonData.spouse1YearlyIncomeBase);
-                assignValue('spouse1YearlyIncomeBonus', jsonData.spouse1YearlyIncomeBonus);
-                assignValue('spouse2YearlyIncomeBase', jsonData.spouse2YearlyIncomeBase);
-                assignValue('spouse2YearlyIncomeBonus', jsonData.spouse2YearlyIncomeBonus);
-                assignValue('annualIncome', jsonData.annualIncome);
-
-                // Add similar lines for other fields
-                // assignValue('fieldId', jsonData.someValue);
-            } catch (error) {
-                console.error("Error parsing JSON data:", error);
-                alert("Error parsing JSON data. Please check the file format.");
-            }
-        };
-        reader.readAsText(file);
-    }
 });
 
+// Function to load and read the selected JSON file
+async function loadJsonFile() {
+    const fileInput = document.getElementById('jsonFile');
+    if (fileInput.files.length === 0) {
+        alert("Please select a JSON file.");
+        return;
+    }
 
-// Function to populate the form with JSON data
+    const file = fileInput.files[0];
+    const reader = new FileReader();
+
+    reader.onload = async (event) => {
+        try {
+            const uniqueScenarioData = JSON.parse(event.target.result);
+
+            // Load general finance data
+            const generalFinanceData = await loadGeneralFinance();
+
+            // Merge general finance data with unique scenario data
+            const combinedData = { ...generalFinanceData, ...uniqueScenarioData };
+
+            // Populate the form with the combined data
+            populateForm(combinedData);
+        } catch (error) {
+            console.error('Error parsing JSON:', error);
+            alert("There was an error parsing the JSON file.");
+        }
+    };
+
+    reader.onerror = (error) => {
+        console.error('Error reading file:', error);
+        alert("There was an error reading the file.");
+    };
+
+    reader.readAsText(file); // Read the file as text
+}
+
+// Function to populate the form fields with data
 function populateForm(data) {
+    // Helper function to set the value of an input field
+    const setValue = (id, value = '') => {
+        const element = document.getElementById(id);
+        if (element) {
+            if (element.type === 'checkbox') {
+                element.checked = !!value; // For checkboxes, use checked property
+            } else {
+                element.value = value; // For other input types, set value
+            }
+        }
+    };
+
+    // Destructure data for easier access
+    const {
+        years = 'Not Found',
+        assumption_description = '',
+        annual_rent = '',
+        annual_vacation = '',
+        additional_insurance = '',
+        interest_rate = '',
+        yearly_expense = '',
+        yearly_gain = '',
+        RETIREMENT = [],
+        gains = [0, 0, 0, 0, 0, 0, 0, 0],
+        spouse1_yearly_income_base = '',
+        spouse1_yearly_income_bonus = '',
+        spouse1_yearly_income_quarterly = '',
+        stockgrant = '',
+        SPOUSE1_PRETAX_INVESTMENTS = {},
+        SPOUSE1_POSTTAX_INVESTMENTS = {},
+        spouse2_yearly_income_base = '',
+        spouse2_yearly_income_bonus = '',
+        spouse2_yearly_income_quarterly = '',
+        SPOUSE2_PRETAX_INVESTMENTS = {},
+        SPOUSE2_POSTTAX_INVESTMENTS = {},
+        employee_stock_purchase = '',
+        yearly_property_tax = '',
+        assumed_tax_rate = '',
+        federal_tax_rate_single = '',
+        state_tax_rate_single = '',
+        federal_tax_rate_dual = '',
+        state_tax_rate_dual = '',
+        Groceries = '',
+        monthly_clothing = '',
+        monthly_house_maintenance = '',
+        miscellaneous = '',
+        CAR_MONTHLY = {},
+        ATHLETIC_TEAM = {},
+        UTILITIES = {},
+        INSURANCE = {},
+        SUBSCRIPTIONS = {},
+        investment_balance = '',
+        retirement_principal = '',
+        initial_contribution = '',
+        increase_contribution = '',
+        house = {},
+        new_house = {},
+        home_tenure = '',
+        residence_location = '',
+        current_residence_location = '',
+        capital_gain_exclusion = '',
+        parent_one = '',
+        parent_two = '',
+        investment = {},
+        KIDS_ACTIVITIES = {},
+        highschool = '',
+        children = {}
+    } = data;
+
     // Basic fields
-    document.getElementById('scenarioName').value = data.scenarioName || '';
-    document.getElementById('scenarioYears').value = data.years || 'Not Found';
-    
+    setValue('assumptionDescription', assumption_description);
+    setValue('scenarioYears', years);
+    setValue('highschool', highschool);
+    setValue('annualRent', annual_rent);
+    setValue('annualVacation', annual_vacation);
+    setValue('interestRate', interest_rate);
+
+    // Situation
+    setValue('homeTenure', home_tenure);
+    setValue('residenceLocation', residence_location);
+    setValue('currentResidenceLocation', current_residence_location);
+    setValue('capitalGainExclusion', capital_gain_exclusion);
+    setValue('parentOne', parent_one);
+    setValue('parentTwo', parent_two);
+
     // Spouse 1 income
-    document.getElementById('spouse1YearlyIncomeBase').value = data.spouse1_yearly_income_base || '';
-    document.getElementById('spouse1YearlyIncomeBonus').value = data.spouse1_yearly_income_bonus || '';
-    document.getElementById('spouse1YearlyIncomeQuarterly').value = data.spouse1_yearly_income_quarterly || '';
-    document.getElementById('stockgrant').value = data.stockgrant || '';
-    
+    setValue('spouse1YearlyIncomeBase', spouse1_yearly_income_base);
+    setValue('spouse1YearlyIncomeBonus', spouse1_yearly_income_bonus);
+    setValue('spouse1YearlyIncomeQuarterly', spouse1_yearly_income_quarterly);
+    setValue('stockgrant', stockgrant);
+
     // Spouse 1 pre-tax investments
-    document.getElementById('spouse1RetirementContributionPretax').value = data.SPOUSE1_PRETAX_INVESTMENTS?.spouse1_retirement_contribution_pretax || '';
-    document.getElementById('spouse1HSAPretax').value = data.SPOUSE1_PRETAX_INVESTMENTS?.spouse1_hsa_pretax || '';
-    document.getElementById('spouse1SerplusPretax').value = data.SPOUSE1_PRETAX_INVESTMENTS?.spouse1_serplus_pretax || '';
-    
+    setValue('spouse1RetirementContributionPretax', SPOUSE1_PRETAX_INVESTMENTS.spouse1_retirement_contribution_pretax);
+    setValue('spouse1HSAPretax', SPOUSE1_PRETAX_INVESTMENTS.spouse1_hsa_pretax);
+    setValue('spouse1SerplusPretax', SPOUSE1_PRETAX_INVESTMENTS.spouse1_serplus_pretax);
+
     // Spouse 1 post-tax investments
-    document.getElementById('spouse1RetirementContributionPosttax').value = data.SPOUSE1_POSTTAX_INVESTMENTS?.spouse1_retirement_contribution_posttax || '';
-    document.getElementById('stocksEsppPosttax').value = data.SPOUSE1_POSTTAX_INVESTMENTS?.stocks_espp_posttax || '';
+    setValue('spouse1RetirementContributionPosttax', SPOUSE1_POSTTAX_INVESTMENTS.spouse1_retirement_contribution_posttax);
+    setValue('stocksEsppPosttax', SPOUSE1_POSTTAX_INVESTMENTS.stocks_espp_posttax);
 
     // Spouse 2 income and investments
-    document.getElementById('spouse2YearlyIncomeBase').value = data.spouse2_yearly_income_base || '';
-    document.getElementById('spouse2YearlyIncomeBonus').value = data.spouse2_yearly_income_bonus || '';
-    document.getElementById('spouse2YearlyIncomeQuarterly').value = data.spouse2_yearly_income_quarterly || '';
+    setValue('spouse2YearlyIncomeBase', spouse2_yearly_income_base);
+    setValue('spouse2YearlyIncomeBonus', spouse2_yearly_income_bonus);
+    setValue('spouse2YearlyIncomeQuarterly', spouse2_yearly_income_quarterly);
     
-    document.getElementById('spouse2RetirementContributionPretax').value = data.SPOUSE2_PRETAX_INVESTMENTS?.spouse2_retirement_contribution_pretax || '';
-    document.getElementById('spouse2HSAPretax').value = data.SPOUSE2_PRETAX_INVESTMENTS?.spouse2_hsa_pretax || '';
-    document.getElementById('spouse2SerplusPretax').value = data.SPOUSE2_PRETAX_INVESTMENTS?.spouse2_serplus_pretax || '';
+    setValue('spouse2RetirementContributionPretax', SPOUSE2_PRETAX_INVESTMENTS.spouse2_retirement_contribution_pretax);
+    setValue('spouse2HSAPretax', SPOUSE2_PRETAX_INVESTMENTS.spouse2_hsa_pretax);
+    setValue('spouse2SerplusPretax', SPOUSE2_PRETAX_INVESTMENTS.spouse2_serplus_pretax);
     
-    document.getElementById('spouse2RetirementContributionPosttax').value = data.SPOUSE2_POSTTAX_INVESTMENTS?.spouse2_retirement_contribution_posttax || '';
-    document.getElementById('stocksEsppPosttax').value = data.SPOUSE2_POSTTAX_INVESTMENTS?.stocks_espp_posttax || '';
+    setValue('spouse2RetirementContributionPosttax', SPOUSE2_POSTTAX_INVESTMENTS.spouse2_retirement_contribution_posttax);
+    setValue('stocksEsppPosttax', SPOUSE2_POSTTAX_INVESTMENTS.stocks_espp_posttax);
+
+    // Gain
+    setValue('annualSurplus', yearly_gain);
 
     // Taxes
-    document.getElementById('yearlyPropertyTax').value = data.yearly_property_tax || '';
-    document.getElementById('assumedTaxRate').value = data.assumed_tax_rate || '';
-    document.getElementById('federalTaxRateSingle').value = data.federal_tax_rate_single || '';
-    document.getElementById('stateTaxRateSingle').value = data.state_tax_rate_single || '';
-    document.getElementById('federalTaxRateDual').value = data.federal_tax_rate_dual || '';
-    document.getElementById('stateTaxRateDual').value = data.state_tax_rate_dual || '';
+    setValue('yearlyPropertyTax', yearly_property_tax);
+    setValue('assumedTaxRate', assumed_tax_rate);
+    setValue('federalTaxRateSingle', federal_tax_rate_single);
+    setValue('stateTaxRateSingle', state_tax_rate_single);
+    setValue('federalTaxRateDual', federal_tax_rate_dual);
+    setValue('stateTaxRateDual', state_tax_rate_dual);
 
     // Expenses
-    document.getElementById('groceries').value = data.Groceries || '';
-    document.getElementById('monthlyClothing').value = data.monthly_clothing || '';
-    document.getElementById('monthlyHouseMaintenance').value = data.monthly_house_maintenance || '';
-    document.getElementById('totalCamp').value = data.total_camp || '';
-    document.getElementById('carPurchase').value = data.car_purchase || '';
-    document.getElementById('fitnessExpenses').value = data.fitness || '';
-    document.getElementById('miscellaneous').value = data.miscellaneous || '';
+    setValue('annualExpenses', yearly_expense);
+    setValue('groceries', Groceries);
+    setValue('monthlyClothing', monthly_clothing);
+    setValue('monthlyHouseMaintenance', monthly_house_maintenance);
+    setValue('miscellaneous', miscellaneous);
 
     // Car monthly expenses
-    document.getElementById('carMaintenance').value = data.CAR_MONTHLY?.car_maintenance || '';
-    document.getElementById('carRepair').value = data.CAR_MONTHLY?.car_repair || '';
-    document.getElementById('carGasExpense').value = data.CAR_MONTHLY?.car_gas_expense || '';
+    setValue('carMaintenance', CAR_MONTHLY.car_maintenance);
+    setValue('carRepair', CAR_MONTHLY.car_repair);
+    setValue('carFuelExpense', CAR_MONTHLY.car_gas_expense);
+    setValue('carPurchase', CAR_MONTHLY.car_purchase);
     
-    // Athletic team
-    document.getElementById('athleticTeamSummerFee').value = data.ATHLETIC_TEAM?.team_summerfee_kid1 || '';
-    document.getElementById('athleticTeamFallFee').value = data.ATHLETIC_TEAM?.team_fallfee_kid1 || '';
-    document.getElementById('athleticTeamEquipment').value = data.ATHLETIC_TEAM?.equipment || '';
-    document.getElementById('athleticTeamClothing').value = data.ATHLETIC_TEAM?.clothing || '';
-    document.getElementById('athleticTeamGas').value = data.ATHLETIC_TEAM?.gas || '';
-    document.getElementById('athleticTeamFlight').value = data.ATHLETIC_TEAM?.flight || '';
-    document.getElementById('athleticTeamGameEntry').value = data.ATHLETIC_TEAM?.game_entry || '';
-    document.getElementById('athleticTeamTravelHousing').value = data.ATHLETIC_TEAM?.travel_housing || '';
+    // Athletic team expenses
+    setValue('athleticTeamSummerFee', ATHLETIC_TEAM.team_summerfee_kid1);
+    setValue('athleticTeamFallFee', ATHLETIC_TEAM.team_fallfee_kid1);
+    setValue('athleticTeamEquipment', ATHLETIC_TEAM.equipment);
+    setValue('athleticTeamClothing', ATHLETIC_TEAM.clothing);
+    setValue('athleticTeamGas', ATHLETIC_TEAM.gas);
+    setValue('athleticTeamFlight', ATHLETIC_TEAM.flight);
+    setValue('athleticTeamGameEntry', ATHLETIC_TEAM.game_entry);
+    setValue('athleticTeamTravelHousing', ATHLETIC_TEAM.travel_housing);
 
     // Utilities
-    document.getElementById('waterUtility').value = data.UTILITIES?.water_utility || '';
-    document.getElementById('gasElectric').value = data.UTILITIES?.gas_electric || '';
-    document.getElementById('internet').value = data.UTILITIES?.internet || '';
-    document.getElementById('garbage').value = data.UTILITIES?.garbage || '';
-    document.getElementById('mobilePhone').value = data.UTILITIES?.mobile_phone || '';
+    setValue('water', UTILITIES.water);
+    setValue('electric', UTILITIES.electric);
+    setValue('gas', UTILITIES.gas);
+    setValue('internet', UTILITIES.internet);
+    setValue('garbage', UTILITIES.garbage);
+    setValue('mobilePhone', UTILITIES.mobile_phone);
 
     // Insurance
-    document.getElementById('carInsurance').value = data.INSURANCE?.car_insurance || '';
-    document.getElementById('homeInsurance').value = data.INSURANCE?.home_insurance || '';
-    document.getElementById('umbrellaInsurance').value = data.INSURANCE?.umbrella_insurance || '';
-    document.getElementById('dentalInsurance').value = data.INSURANCE?.dental_insurance || '';
-    document.getElementById('visionInsurance').value = data.INSURANCE?.vision_insurance || '';
-    document.getElementById('hfsa').value = data.INSURANCE?.hfsa || '';
+    setValue('carInsurance', INSURANCE.car_insurance);
+    setValue('homeInsurance', INSURANCE.home_insurance);
+    setValue('umbrellaInsurance', INSURANCE.umbrella_insurance);
+    setValue('dentalInsurance', INSURANCE.dental_insurance);
+    setValue('visionInsurance', INSURANCE.vision_insurance);
+    setValue('hfsa', INSURANCE.hfsa);
+    setValue('additionalInsurance', additional_insurance);
 
     // Subscriptions
-    document.getElementById('streamingTV').value = data.SUBSCRIPTIONS?.streaming_tv || '';
-    document.getElementById('books').value = data.SUBSCRIPTIONS?.books || '';
-    document.getElementById('streamMusic').value = data.SUBSCRIPTIONS?.stream_music || '';
-    document.getElementById('professionalSubscriptions').value = data.SUBSCRIPTIONS?.professional_subscriptions || '';
-    document.getElementById('videoSubscriptions').value = data.SUBSCRIPTIONS?.video || '';
-    document.getElementById('photoSubscriptions').value = data.SUBSCRIPTIONS?.photo || '';
-    document.getElementById('shoppingSubscriptions').value = data.SUBSCRIPTIONS?.shopping || '';
+    setValue('streamingTV', SUBSCRIPTIONS.streaming_tv);
+    setValue('books', SUBSCRIPTIONS.books);
+    setValue('streamMusic', SUBSCRIPTIONS.stream_music);
+    setValue('professionalSubscriptions', SUBSCRIPTIONS.professional_subscriptions);
+    setValue('videoSubscriptions', SUBSCRIPTIONS.video);
+    setValue('photoSubscriptions', SUBSCRIPTIONS.photo);
+    setValue('shoppingSubscriptions', SUBSCRIPTIONS.shopping);
 
     // House details
-    document.getElementById('currentHouseValue').value = data.house?.value || '';
-    document.getElementById('sellHouse').checked = data.house?.sell_house || false;
+    setValue('currentHouseValue', house.value);
+    setValue('cost_basis', house.cost_basis); // Add this line for cost_basis
+    setValue('closing_costs', house.closing_costs); // Add this line for closing costs
+    setValue('home_improvement', house.home_improvement); // Add this line for home improvement
+    setValue('mortgage_principal', house.mortgage_principal); // Add this line for mortgage principal
+    setValue('commission_rate', house.commission_rate); // Add this line for commission rate
+    setValue('annual_growth_rate', house.annual_growth_rate); // Add this line for annual growth rate
+    setValue('interest_rate', house.interest_rate); // Add this line for interest rate
+    setValue('monthly_payment', house.monthly_payment); // Add this line for monthly payment
+    setValue('payments_made', house.payments_made); // Add this line for payments made
+    setValue('number_of_payments', house.number_of_payments); // Add this line for number of payments
+    setValue('sell_house', house.sell_house); // Add this line for sell house checkbox
 
-    // Retirement, investment, children, etc. can be populated similarly
+    // Populate KIDS_ACTIVITIES -> BASEBALL
+    const baseball = KIDS_ACTIVITIES.BASEBALL || {};
+    setValue('baseballTeamFeeSummer', baseball.team_fee_summer || 0); // Default to 0 if undefined
+    setValue('baseballTeamFeeFall', baseball.team_fee_fall || 0);
+    setValue('baseballEquipment', baseball.equipment || 0);
+    setValue('baseballClothing', baseball.clothing || 0);
+    setValue('baseballGas', baseball.gas || 0);
+    setValue('baseballGameEntry', baseball.game_entry || 0);
+    setValue('baseballTravelHousing', baseball.travel_housing || 0);
+
+    // Populate KIDS_ACTIVITIES -> SKI_TEAM
+    const skiTeam = KIDS_ACTIVITIES.SKI_TEAM || {};
+    setValue('skiTeamFee', skiTeam.team_fee || 0);
+    setValue('skiTeamEquipment', skiTeam.equipment || 0);
+    setValue('skiTeamClothing', skiTeam.clothing || 0);
+    setValue('skiTeamLiftPasses', skiTeam.lift_passes || 0);
+    setValue('skiTeamGas', skiTeam.gas || 0);
+    setValue('skiTeamTravelHousing', skiTeam.travel_housing || 0);
+    setValue('totalSkiCamp', skiTeam.Total_ski_camp || 0); // Populate total if applicable
+
+    // Populate KIDS_ACTIVITIES -> OTHER
+    const other = KIDS_ACTIVITIES.OTHER || {};
+    setValue('totalCampWidji', other.total_campwidji || 0);
+    setValue('jiujitsu', other.jiujitsu || 0);
+    
+     // New house details
+     if (new_house) {
+        setValue('newHouseDescription', new_house.description);
+        setValue('newHouseCostBasis', new_house.cost_basis);
+        setValue('newHouseClosingCosts', new_house.closing_costs);
+        setValue('newHouseHomeImprovement', new_house.home_improvement);
+        setValue('newHouseValue', new_house.value);
+        setValue('newHouseMortgagePrincipal', new_house.mortgage_principal);
+        setValue('newHouseCommissionRate', new_house.commission_rate);
+        setValue('newHouseAnnualGrowthRate', new_house.annual_growth_rate);
+        setValue('newHouseInterestRate', new_house.interest_rate);
+        setValue('newHouseMonthlyPayment', new_house.monthly_payment);
+        setValue('newHousePaymentsMade', new_house.payments_made);
+        setValue('newHouseNumberOfPayments', new_house.number_of_payments);
+    } else {
+        // Clear new house fields if not applicable
+        setValue('newHouseDescription');
+        setValue('newHouseCostBasis');
+        setValue('newHouseClosingCosts');
+        setValue('newHouseHomeImprovement');
+        setValue('newHouseValue');
+        setValue('newHouseMortgagePrincipal');
+        setValue('newHouseCommissionRate');
+        setValue('newHouseAnnualGrowthRate');
+        setValue('newHouseInterestRate');
+        setValue('newHouseMonthlyPayment');
+        setValue('newHousePaymentsMade');
+        setValue('newHouseNumberOfPayments');
+    }
+
+    // At the end of your populateForm function
+    
+    setValue('investmentBalance', investment_balance);
+    setValue('retirementPrincipal', retirement_principal);
+    setValue('initialContribution', initial_contribution);
+    setValue('increaseContribution', increase_contribution);
+    setValue('employeeStockPP', employee_stock_purchase);
+    
+    const container = document.getElementById('genericInvestmentsContainer');
+    if (container) {
+        populateGenericInvestments(investment);
+    } else {
+        console.error("genericInvestmentsContainer not found!");
+    }
+
+    // Create education sections for each child
+    children.forEach(child => {
+        createEducationSection(child.name, child, `${child.name.toLowerCase()}Education`);
+    });
+
+    createGainsInputs(gains);
+
+        // Populate Retirement Data for Spouse 1 and Spouse 2
+        if (RETIREMENT.length > 0) {
+            // Spouse 1
+            const spouse1 = RETIREMENT.find(spouse => spouse.name === 'Spouse 1');
+            if (spouse1) {
+                // Contributions
+                setValue('spouse1_roth_posttax', spouse1.contributions.Roth[0].spouse1_retirement_contribution_posttax);
+                setValue('spouse1_employer_match', spouse1.contributions['401K'][0].Spouse1_Employer_Match);
+                setValue('spouse1_pretax_401k', spouse1.contributions['401K'][1].spouse1_retirement_contribution_pretax);
+    
+                // Accounts
+                setValue('spouse1_roth_ira', spouse1.accounts.Roth[0]['Roth IRA']);
+                setValue('spouse1_traditional_ira', spouse1.accounts.IRA[0].Traditional);
+                setValue('spouse1_401k', spouse1.accounts['401K'][0]['401k']);
+                setValue('spouse1_rollover_401k', spouse1.accounts['401K'][2]['Rollover 401K']);
+            }
+    
+            // Spouse 2
+            const spouse2 = RETIREMENT.find(spouse => spouse.name === 'Spouse 2');
+            if (spouse2) {
+                // Contributions
+                setValue('spouse2_roth_posttax', spouse2.contributions.Roth[0].spouse2_retirement_contribution_posttax);
+                setValue('spouse2_employer_match', spouse2.contributions['401K'][0].Spouse2_Employer_Match);
+                setValue('spouse2_pretax_401k', spouse2.contributions['401K'][1].spouse2_retirement_contribution_pretax);
+    
+                // Accounts
+                setValue('spouse2_roth_ira', spouse2.accounts.Roth[0]['Roth IRA']);
+                setValue('spouse2_traditional_ira', spouse2.accounts.IRA[0]['Traditional IRA']);
+                setValue('spouse2_rollover_ira', spouse2.accounts.IRA[1]['Rollover IRA']);
+                setValue('spouse2_401k', spouse2.accounts['401K'][0]['401k']);
+            }
+        }
+}
+
+let investmentCount = 0; // Initialize a counter for unique investment IDs
+
+function populateGenericInvestments(investments) {
+    const investmentsContainer = document.getElementById('genericInvestmentsContainer');
+
+    // Clear existing investments
+    investmentsContainer.innerHTML = '';
+    investmentCount = 0; // Reset the counter
+
+    // Iterate through the investments object
+    for (const key in investments) {
+        if (investments.hasOwnProperty(key)) {
+            const investment = investments[key];
+
+            // Create a new div for the investment
+            investmentCount++; // Increment the count for unique ID
+
+            const investmentDiv = document.createElement('div');
+            investmentDiv.classList.add('genericInvestment');
+            investmentDiv.id = `genericInvestment${investmentCount}`; // Generate unique ID
+
+            const investmentWrapper = document.createElement('div');
+            investmentWrapper.classList.add('two-column');
+
+            // Name input group
+            const nameGroup = document.createElement('div');
+            nameGroup.classList.add('form-group');
+
+            const nameLabel = document.createElement('label');
+            nameLabel.setAttribute('for', investmentDiv.id + 'Name');
+            nameLabel.textContent = `Investment Name ${investmentCount}:`;
+            nameGroup.appendChild(nameLabel);
+
+            const nameInput = document.createElement('input');
+            nameInput.type = 'text';
+            nameInput.id = investmentDiv.id + 'Name';
+            nameInput.name = `genericInvestmentName${investmentCount}`;
+            nameInput.value = investment.name || ''; // Set the name
+            nameGroup.appendChild(nameInput);
+
+            // Value input group
+            const valueGroup = document.createElement('div');
+            valueGroup.classList.add('form-group');
+
+            const valueLabel = document.createElement('label');
+            valueLabel.setAttribute('for', investmentDiv.id + 'Value');
+            valueLabel.textContent = `Investment Value ${investmentCount}:`;
+            valueGroup.appendChild(valueLabel);
+
+            const valueInput = document.createElement('input');
+            valueInput.type = 'number';
+            valueInput.id = investmentDiv.id + 'Value';
+            valueInput.name = `genericInvestmentValue${investmentCount}`;
+            valueInput.value = investment.amount || ''; // Set the value
+            valueInput.step = "0.01";
+            valueGroup.appendChild(valueInput);
+
+            // Append the input groups to the investment wrapper
+            investmentWrapper.appendChild(nameGroup);
+            investmentWrapper.appendChild(valueGroup);
+            investmentDiv.appendChild(investmentWrapper);
+
+            // Append investment div to the container
+            investmentsContainer.appendChild(investmentDiv);
+        }
+    }
+}
+
+
+
+// Function to add a new investment
+function addInvestment() {
+    const investmentsContainer = document.getElementById('genericInvestmentsContainer');
+    investmentCount++; // Increment the count for unique ID
+
+    // Create a new div for the investment
+    const investmentDiv = document.createElement('div');
+    investmentDiv.classList.add('genericInvestment');
+    investmentDiv.id = `genericInvestment${investmentCount}`; // Generate unique ID
+
+    const nameLabel = document.createElement('label');
+    nameLabel.setAttribute('for', investmentDiv.id + 'Name');
+    nameLabel.textContent = `Investment Name ${investmentCount}:`;
+    investmentDiv.appendChild(nameLabel);
+
+    const nameInput = document.createElement('input');
+    nameInput.type = 'text';
+    nameInput.id = investmentDiv.id + 'Name';
+    nameInput.name = `genericInvestmentName${investmentCount}`;
+    investmentDiv.appendChild(nameInput);
+
+    const valueLabel = document.createElement('label');
+    valueLabel.setAttribute('for', investmentDiv.id + 'Value');
+    valueLabel.textContent = `Investment Value ${investmentCount}:`;
+    investmentDiv.appendChild(valueLabel);
+
+    const valueInput = document.createElement('input');
+    valueInput.type = 'number';
+    valueInput.id = investmentDiv.id + 'Value';
+    valueInput.name = `genericInvestmentValue${investmentCount}`;
+    valueInput.step = "0.01";
+    investmentDiv.appendChild(valueInput);
+
+    // Append the new investment div to the container
+    investmentsContainer.appendChild(investmentDiv);
+}
+
+
+async function loadGeneralFinance() {
+    try {
+        const response = await fetch('/static/scenarios/general.finance.json');
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        return await response.json();
+    } catch (error) {
+        console.error('Error loading general finance data:', error);
+        return {};
+    }
+}
+
+async function loadScenario(scenarioFile) {
+    const generalFinance = await loadGeneralFinance();
+    
+    try {
+        const response = await fetch(`/scenarios/${scenarioFile}`);
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        const scenarioData = await response.json();
+
+        // Merge general finance data with scenario data
+        const combinedData = { ...generalFinance, ...scenarioData };
+        populateForm(combinedData);
+    } catch (error) {
+        console.error('Error loading scenario data:', error);
+    }
+}
+
+// Example utility function to set values and create form fields
+function createYearInputField(childName, schoolType, year, cost) {
+    const div = document.createElement('div');
+    div.classList.add('form-group');
+    
+    const label = document.createElement('label');
+    label.for = `${childName}${schoolType}${year}`;
+    label.textContent = `${year}:`;
+    
+    const input = document.createElement('input');
+    input.type = 'number';
+    input.id = `${childName}${schoolType}${year}`;
+    input.name = `${childName}_${schoolType}_${year}`;
+    input.placeholder = `Enter cost for ${year}`;
+    input.value = cost || '';
+    
+    div.appendChild(label);
+    div.appendChild(input);
+    return div;
+}
+
+// Function to dynamically generate form fields for high school and college expenses
+function createEducationSection(childName, childData, sectionId) {
+    // Find the container where the education fields will be added
+    const section = document.getElementById(sectionId);
+    if (!section) return;
+
+    // Clear previous content (if any)
+    section.innerHTML = '';
+
+    // Create High School Expense Fields
+    const highSchoolSection = document.createElement('div');
+    highSchoolSection.innerHTML = `<h3>${childName} - High School Expenses</h3>`;
+    
+    // Create a div for two columns layout
+    const highSchoolDiv = document.createElement('div');
+    highSchoolDiv.className = 'two-column';
+
+    childData.school.high_school.forEach(({ year, cost }) => {
+        const formGroup = document.createElement('div');
+        formGroup.className = 'form-group';
+
+        const label = document.createElement('label');
+        label.textContent = `Year ${year}:`;
+        label.setAttribute('for', `${childName.toLowerCase()}_highschool_${year}`);
+
+        const input = document.createElement('input');
+        input.type = 'number';
+        input.id = `${childName.toLowerCase()}_highschool_${year}`;
+        input.name = `${childName.toLowerCase()}_highschool_${year}`; // Optional, if you want to identify input fields
+        input.placeholder = 'Enter high school cost';
+        input.required = true; // Set required attribute as needed
+        input.value = cost || ''; // Default to empty if cost is not provided
+
+        // Append label and input to the form group
+        formGroup.appendChild(label);
+        formGroup.appendChild(input);
+        
+        // Append form group to high school div
+        highSchoolDiv.appendChild(formGroup);
+    });
+    highSchoolSection.appendChild(highSchoolDiv);
+    section.appendChild(highSchoolSection);
+
+    // Create College Expense Fields
+    const collegeSection = document.createElement('div');
+    collegeSection.innerHTML = `<h3>${childName} - College Expenses</h3>`;
+    
+    // Create a div for two columns layout
+    const collegeDiv = document.createElement('div');
+    collegeDiv.className = 'two-column';
+
+    childData.school.college.forEach(({ year, cost }) => {
+        const formGroup = document.createElement('div');
+        formGroup.className = 'form-group';
+
+        const label = document.createElement('label');
+        label.textContent = `Year ${year}:`;
+        label.setAttribute('for', `${childName.toLowerCase()}_college_${year}`);
+
+        const input = document.createElement('input');
+        input.type = 'number';
+        input.id = `${childName.toLowerCase()}_college_${year}`;
+        input.name = `${childName.toLowerCase()}_college_${year}`; // Optional, if you want to identify input fields
+        input.placeholder = 'Enter college cost';
+        input.required = true; // Set required attribute as needed
+        input.value = cost || ''; // Default to empty if cost is not provided
+
+        // Append label and input to the form group
+        formGroup.appendChild(label);
+        formGroup.appendChild(input);
+        
+        // Append form group to college div
+        collegeDiv.appendChild(formGroup);
+    });
+    collegeSection.appendChild(collegeDiv);
+    section.appendChild(collegeSection);
+}
+
+// Function to generate input fields for each year
+function createGainsInputs(gains) {
+    const gainsContainer = document.getElementById('gainsContainer');
+    gainsContainer.innerHTML = ''; // Clear any existing inputs
+
+    gains.forEach((gain, index) => {
+        const inputDiv = document.createElement('div');
+        inputDiv.className = 'year-input';
+
+        // Create a unique id for each input field
+        const inputId = `gainYear${index + 1}`;
+
+        const label = document.createElement('label');
+        label.setAttribute('for', inputId); // Associate the label with the input field
+        label.textContent = `Year ${index + 1} Gain:`; // Adjust label text for clarity
+        inputDiv.appendChild(label);
+
+        const input = document.createElement('input');
+        input.type = 'number';
+        input.value = gain;
+        input.id = inputId; // Set the id for the input field
+        input.name = `gainYear${index + 1}`; // Set a name for the input
+        input.required = true; // Optional: make it required
+
+        inputDiv.appendChild(input);
+        gainsContainer.appendChild(inputDiv);
+    });
 }

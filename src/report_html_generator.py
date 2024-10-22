@@ -309,11 +309,11 @@ def generate_current_networth_html_table(
 
     # Calculating necessary values
     house_net_worth = house_info.get("house_net_worth", 0.0)
-    investment_balance = config_data.get('investment_balance', 0.0)
-    retirement_principal = config_data.get('retirement_principal', 0.0)
+    retirement_principal = calculated_data.get('total_retirement_principal', 0.0)
     combined_networth = calculated_data.get("combined_networth", 0.0)
 
-    total_retirement_assets = capital_from_house_sale + investment_balance + retirement_principal
+    total_investment_balance = calculated_data['total_investment_balance']
+    total_retirement_assets = capital_from_house_sale + total_investment_balance + retirement_principal
     safe_withdrawal_amount = SAFE_WITHDRAWAL_RATE * total_retirement_assets
 
     oneyear_house_value = house_net_worth * annual_growth_rate 
@@ -334,7 +334,7 @@ def generate_current_networth_html_table(
         ),
         generate_net_worth_row(
             "Investment Balance",
-            investment_balance,
+            total_investment_balance,
             f"Projected value if not used to cover expenses.<br>Projected Future Value: {format_currency(projected_growth)}"
         ),
         generate_net_worth_row("Retirement Balance", retirement_principal),
@@ -558,7 +558,7 @@ def generate_current_networth_html(report_data: dict) -> str:
         <div class='table-container'>
             <table>
                 <tr><th>House Net Worth</th><td>{format_currency(house_info.get("house_net_worth", 0))}</td></tr>
-                <tr><th>Investment Balance</th><td>{format_currency(config_data.get('investment_balance', 0))}</td></tr>
+                <tr><th>Investment Balance</th><td>{format_currency(calculated_data.get('total_investment_balance', 0))}</td></tr>
                 <tr><th>Retirement Balance</th><td>{format_currency(config_data.get('retirement_principal', 0))}</td></tr>
                 <tr><th>Combined Net Worth</th><td>{format_currency(calculated_data.get("combined_networth", 0))}</td></tr>
             </table>
@@ -1479,7 +1479,11 @@ def generate_navigation(toc_content, config):
             # Organize reports by work status
             work_status_dict = {}
             for file, simplified_name, full_names, work_status, report_name_suffix in reports:
-                parent1_name, parent2_name = full_names  # Extract the parent names
+                # if len(full_names) == 2:
+                parent1_name, parent2_name = full_names
+                # else:
+                #     logging.warning(f"Error: Parent names are not provided correctly in the configuration. {full_names}")
+                #     parent1_name = parent2_name = "Unknown Parent"  # Fallback if names are missing
 
                 # Dynamically create the friendly status based on the work status
                 if work_status == "retired-retired":

@@ -29,5 +29,9 @@ def view_report(filename):
     # Return a specific report by serving the HTML file
     return send_from_directory('reports', f'{filename}.html')
 
+app.route('/scenarios/<path:filename>')
+def serve_json(filename):
+    return send_from_directory('scenarios', filename)
+
 if __name__ == "__main__":
     app.run(debug=True)

@@ -130,7 +130,7 @@ def parse_arguments():
     
     return args
 
-LOGS_DIR = Path('../logs').resolve()
+LOGS_DIR = Path('./logs').resolve()
 
 def format_currency(value):
     return f"${value:,.2f}"
