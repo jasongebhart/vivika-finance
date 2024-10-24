@@ -7,23 +7,6 @@ function toggleSectionVisibilityClass(sectionClass) {
     }
 }
 
-// function toggleSectionVisibility(sectionId) {
-//     var sectionTitle = document.getElementById(sectionId);
-//     var sectionContent = document.getElementById(sectionId + "-content");
-
-//     if (sectionTitle && sectionContent) {
-//         sectionTitle.classList.toggle('hidden');
-//         sectionContent.classList.toggle('hidden');
-//     }
-// }
-
-// function toggleSectionVisibility(sectionId) {
-//     var sectionContent = document.getElementById(sectionId + "-content");
-//     if (sectionContent) {
-//         sectionContent.classList.toggle('hidden');
-//     }
-// }
-
 function toggleSectionVisibility(sectionId) {
     const content = document.getElementById(sectionId + '-content');
     if (content.classList.contains('hidden')) {
@@ -33,8 +16,104 @@ function toggleSectionVisibility(sectionId) {
     }
 }
 
+function toggleCollapsible(buttonId, contentId, isNavSection = false, group = null) {
+    const content = document.getElementById(contentId);
+    const button = document.getElementById(buttonId);
 
-function toggleCollapsible(buttonId, contentId, isNavSection = false) {
+    if (isNavSection) {
+        // For the navigation section, collapse all other navigation sections
+        const allContents = document.querySelectorAll('.nav-collapsible-content');
+        const allButtons = document.querySelectorAll('.nav-collapsible');
+
+        allContents.forEach((otherContent) => {
+            if (otherContent !== content) {
+                otherContent.style.maxHeight = null; // Collapse other sections
+                localStorage.setItem(otherContent.id, 'collapsed'); // Save state
+            }
+        });
+
+        allButtons.forEach((otherButton) => {
+            if (otherButton !== button) {
+                otherButton.classList.remove('active');
+            }
+        });
+
+        // Store which group (viable, not-viable, or all) was last opened
+        if (group) {
+            localStorage.setItem('lastGroupOpened', group);
+        }
+    }
+
+    // Toggle the selected section
+    if (content.style.maxHeight) {
+        // Collapse the selected section
+        content.style.maxHeight = null;
+        button.classList.remove('active');
+        localStorage.setItem(contentId, 'collapsed'); // Save state
+    } else {
+        // Expand the selected section
+        content.style.maxHeight = content.scrollHeight + "px";
+        button.classList.add('active');
+        localStorage.setItem(contentId, 'expanded'); // Save state
+    }
+}
+
+
+function restoreGroupState() {
+    const lastGroupOpened = localStorage.getItem('lastGroupOpened');
+    if (lastGroupOpened) {
+        // Automatically expand the last opened group (viable/not-viable)
+        const groupButton = document.querySelector(`[data-group="${lastGroupOpened}"]`);
+        if (groupButton) {
+            groupButton.click();
+        }
+    }
+}
+
+
+// Function to restore the last active section from localStorage
+function restoreCollapsibleState() {
+    // Restore the state for viable-content, not-viable-content, and all-content
+    const viableContentState = localStorage.getItem('viable-content');
+    const notViableContentState = localStorage.getItem('not-viable-content');
+    const allContentState = localStorage.getItem('all-content');
+
+    const viableButton = document.querySelector(`[data-target="viable-content"]`);
+    const viableContent = document.getElementById('viable-content');
+    const notViableButton = document.querySelector(`[data-target="not-viable-content"]`);
+    const notViableContent = document.getElementById('not-viable-content');
+    const allButton = document.querySelector(`[data-target="all-content"]`);
+    const allContent = document.getElementById('all-content');
+
+    // Restore viable-content state
+    if (viableContentState === 'expanded') {
+        viableContent.style.maxHeight = viableContent.scrollHeight + "px";
+        viableButton.classList.add('active');
+    } else {
+        viableContent.style.maxHeight = null;
+        viableButton.classList.remove('active');
+    }
+
+    // Restore not-viable-content state
+    if (notViableContentState === 'expanded') {
+        notViableContent.style.maxHeight = notViableContent.scrollHeight + "px";
+        notViableButton.classList.add('active');
+    } else {
+        notViableContent.style.maxHeight = null;
+        notViableButton.classList.remove('active');
+    }
+
+    // Restore all-content state
+    if (allContentState === 'expanded') {
+        allContent.style.maxHeight = allContent.scrollHeight + "px";
+        allButton.classList.add('active');
+    } else {
+        allContent.style.maxHeight = null;
+        allButton.classList.remove('active');
+    }
+}
+
+function toggleCollapsible_old(buttonId, contentId, isNavSection = false) {
     const content = document.getElementById(contentId);
     const button = document.getElementById(buttonId);
 
@@ -73,7 +152,10 @@ document.addEventListener("DOMContentLoaded", () => {
     document.getElementById('loadJsonButton').addEventListener('click', loadJsonFile);
     // Event listener for adding a new investment
     document.getElementById('addInvestmentBtn').addEventListener('click', addInvestment);
-
+    // Restore the last opened viable/not-viable section
+    restoreGroupState();
+    // Restore the saved state of collapsible sections
+    restoreCollapsibleState();
 });
 
 // Function to load and read the selected JSON file

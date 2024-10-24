@@ -20,20 +20,35 @@ CAPITAL_GAIN_EXCLUSION = 500000
 def load_configuration() -> Tuple[Dict, Dict]:
     """
     Loads and parses the configuration files.
-    
+
     Returns:
         Tuple[Dict, Dict]: scenarios_data and general_config.
     """
     try:
+        logging.info("Starting configuration loading process.")
+
+        # Load the configurations
+        logging.debug("Calling 'parse_and_load_config' to load scenarios and general configuration.")
         scenarios_data, general_config = parse_and_load_config()
-        logging.info("Configuration and general configuration loaded successfully.")
-        utils.log_data(scenarios_data, title="Loaded Scenarios Data")
-        utils.log_data(general_config, title="General Configuration Data")
+
+        # Log the successful loading with a summary for each
+        logging.info("Configuration files loaded successfully.")
+        utils.log_data(scenarios_data, title="Loaded Scenarios Data", max_entries=10, log_level=logging.DEBUG)
+        utils.log_data(general_config, title="General Configuration Data", max_entries=5, log_level=logging.DEBUG)
+
         return scenarios_data, general_config
-    except Exception as e:
-        logging.exception("Error loading configuration")
+
+    except FileNotFoundError as fnf_error:
+        logging.error(f"Configuration file not found: {fnf_error}")
         sys.exit(1)
 
+    except ValueError as val_error:
+        logging.error(f"Value error encountered while parsing configuration: {val_error}")
+        sys.exit(1)
+
+    except Exception as e:
+        logging.exception(f"Unexpected error occurred during configuration loading: {e}")
+        sys.exit(1)
 
 def load_config(config_file_path):
     logging.debug("Entering <function ")
@@ -732,24 +747,52 @@ def apply_overrides(config_data, overrides, spouse_key):
 def calculate_spouse_income(spouse_data, tax_rate):
     """
     Calculate income data for a given spouse based on their data and tax rate.
-    This function should contain the logic for calculating various income components.
+    This function contains the logic for calculating various income components.
     """
+    # Retrieve income data
     base_income = spouse_data.get('yearly_income', {}).get('base', 0)
     bonus_income = spouse_data.get('yearly_income', {}).get('bonus', 0)
     quarterly_income = spouse_data.get('yearly_income', {}).get('quarterly', 0)
 
-    # Sample calculations (expand as needed)
+    # Sample calculations for total yearly income
     yearly_income_combined = base_income + bonus_income + (quarterly_income * 4)
-    
-    # Further calculations can be added here...
-    
+
+    logging.debug(f"Base Income: {base_income}")
+    logging.debug(f"Bonus Income: {bonus_income}")
+    logging.debug(f"Quarterly Income: {quarterly_income} (Annual Total: {quarterly_income * 4})")
+    logging.debug(f"Yearly Income Combined: {yearly_income_combined}")
+
+    # Retrieve pre-tax and post-tax investment data
+    pretax_investments = spouse_data.get('pretax_investments', {})
+    posttax_investments = spouse_data.get('posttax_investments', {})
+
+    # Calculate total pre-tax investments
+    total_pre_tax_investments = sum(pretax_investments.values())
+    logging.debug(f"Total Pre-Tax Investments: {total_pre_tax_investments}")
+
+    # Calculate total post-tax investments
+    total_post_tax_investments = sum(posttax_investments.values())
+    logging.debug(f"Total Post-Tax Investments: {total_post_tax_investments}")
+
+    # Calculate income after pre-tax items
+    income_after_pretax_items = yearly_income_combined - total_pre_tax_investments
+    logging.debug(f"Income After Pre-Tax Items: {income_after_pretax_items}")
+
+    # Calculate income after taxes
+    income_after_taxes = income_after_pretax_items * (1 - tax_rate)
+    logging.debug(f"Income After Taxes (Tax Rate: {tax_rate}): {income_after_taxes}")
+
+    # Calculate income after post-tax items
+    income_after_posttax_items = income_after_taxes - total_post_tax_investments
+    logging.debug(f"Income After Post-Tax Items: {income_after_posttax_items}")
+
     return {
         "yearly_income_combined": yearly_income_combined,
-        "total_pre_tax_investments": 0,  # Replace with actual calculation
-        "total_post_tax_investments": 0,  # Replace with actual calculation
-        "income_after_pretax_items": yearly_income_combined,  # Adjust for pre-tax investments
-        "income_after_taxes": yearly_income_combined * (1 - tax_rate),  # Adjust for tax
-        "income_after_posttax_items": yearly_income_combined * (1 - tax_rate)  # Adjust for post-tax investments
+        "total_pre_tax_investments": total_pre_tax_investments,
+        "total_post_tax_investments": total_post_tax_investments,
+        "income_after_pretax_items": income_after_pretax_items,
+        "income_after_taxes": income_after_taxes,
+        "income_after_posttax_items": income_after_posttax_items
     }
 
 def calculate_annual_surplus(monthly_surplus):
@@ -1093,13 +1136,13 @@ def calculate_expenses_not_factored_in_report(config_data):
 def calculate_surplus(yearly_data, total_monthly_expenses, yearly_expenses=None):
     logging.debug("Entering <function ")
 
-    yearly_income = yearly_data["Yearly Net Income"]
-    logging.info(f"{'Yearly Net Income':<42} {format_currency(yearly_income)}")
-    logging.info(f"{'Monthly Net Income':<42} {format_currency(yearly_income / 12)}")
+    annual_income = yearly_data["Yearly Net Income"]
+    logging.info(f"{'Yearly Net Income':<42} {format_currency(annual_income)}")
+    logging.info(f"{'Monthly Net Income':<42} {format_currency(annual_income / 12)}")
     logging.info(f"{'Monthly Expenses':<42} {format_currency(total_monthly_expenses)}")
     
-    # Calculate monthly surplus (without considering yearly expenses yet)
-    monthly_surplus = int(yearly_income / 12) - int(total_monthly_expenses)
+    # Calculate monthly surplus (without considering annual expenses yet)
+    monthly_surplus = int(annual_income / 12) - int(total_monthly_expenses)
     logging.info(f"{'Monthly Surplus':<42} {format_currency(monthly_surplus)}")
 
     # Convert monthly surplus into yearly surplus
@@ -1110,6 +1153,7 @@ def calculate_surplus(yearly_data, total_monthly_expenses, yearly_expenses=None)
     if yearly_expenses:
         annual_surplus -= yearly_expenses
         logging.info(f"{'Yearly Expenses':<42} {format_currency(yearly_expenses)}")
+    logging.info(f"{'Annual Surplus after yearly expenses':<42} {format_currency(annual_surplus)}")
 
     surplus_type = determine_surplus_type(annual_surplus)
 
@@ -1121,26 +1165,39 @@ def calculate_income_expenses(config_data, tax_rate):
 
     # Calculate financial data
     yearly_data, total_monthly_expenses, monthly_expenses_breakdown = calculate_financial_data(config_data, tax_rate)
+    logging.info(f"Financial data calculated. Yearly income: {yearly_data}")
+    logging.info(f"Total monthly expenses: {format_currency(total_monthly_expenses)}")
     
     # Additional expenses that may not be included in monthly expenses
     expenses_not_factored_in_report = calculate_expenses_not_factored_in_report(config_data)
+    logging.info(f"Expenses not factored in report: {expenses_not_factored_in_report}")
 
     # Yearly expenses (e.g., vacations, insurance, etc.) from config_data
     annual_vacation = config_data.get('annual_vacation', 0)
-    annual_insurance = config_data.get('annual_insurance', 0)
+    additional_insurance = config_data.get('additional_insurance', 0)
     annual_rent = config_data.get('annual_rent', 0)
+    logging.info(f"Annual vacation: {format_currency(annual_vacation)}, "
+                f"Annual insurance: {format_currency(additional_insurance)}, "
+                f"Annual rent: {format_currency(annual_rent)}")
     
     # Total yearly expenses (sum of all yearly costs)
-    total_yearly_expenses = annual_vacation + annual_insurance + annual_rent
+    total_yearly_expenses = annual_vacation + additional_insurance + annual_rent
+    logging.info(f"{'total_yearly_expenses':<42} {format_currency(total_yearly_expenses)}")
     
     # Calculate surplus, now factoring in yearly expenses
     annual_surplus, surplus_type, monthly_surplus = calculate_surplus(yearly_data, total_monthly_expenses, total_yearly_expenses)
-
+    logging.info(f"Annual surplus: {format_currency(annual_surplus)} ({surplus_type}), "
+                 f"Monthly surplus (annual expenses not included): {format_currency(monthly_surplus)}")
+    
     # Calculate school expenses
     total_school_expense, total_highschool_expense, total_college_expense = calculate_total_child_education_expense(config_data)
+    logging.info(f"Total school expenses: {format_currency(total_school_expense)}, "
+                 f"High school expenses: {format_currency(total_highschool_expense)}, "
+                 f"College expenses: {format_currency(total_college_expense)}")
     
     # Yearly income deficit if provided
     yearly_income_deficit = int(config_data['yearly_expense'])
+    logging.info(f"Yearly income deficit: {format_currency(yearly_income_deficit)}")
 
     # Add everything to the calculated_data dictionary
     calculated_data = {
@@ -1159,51 +1216,6 @@ def calculate_income_expenses(config_data, tax_rate):
 
     return calculated_data
 
-
-def _calculate_investment_values(config_data, annual_surplus):
-    logging.debug("Entering <function ")
-    logging.info(f"{'annual_surplus':<32} {format_currency(annual_surplus)}")
-    logging.info(f"{'yearly_gain':<32} {config_data.get('yearly_gain',0)}")
-
-    annual_surplus=annual_surplus + config_data.get('yearly_gain',0)
-
-    logging.info("Employee Stock Plan")
-    total_employee_stockplan = calculate_future_value(
-        0,
-        config_data.get('employee_stock_purchase', 0),
-        increase_contribution=0,
-        interest_rate=config_data.get('interest_rate', 0),
-        years=config_data.get('years', 0))
-    logging.info(f"{'Total Employee Stock Plan':<31} {format_currency(total_employee_stockplan)}")
-    school_expenses = calculate_school_expenses(config_data, flatten=True)
-
-    logging.info(f"Investments & Expenses ")
-    balance_with_expenses = calculate_balance(
-        config_data.get('investment_balance', 0),
-        config_data.get('interest_rate', 0),
-        config_data.get('years', 0),
-        annual_surplus=annual_surplus,
-        gains=config_data.get('gains', 0),
-        expenses=school_expenses,
-        yearly_expense=config_data.get('yearly_expense', 0))
-
-    logging.info(f"Retirement Valuation")
-    future_retirement_value_contrib = calculate_future_value(
-        config_data.get('total_retirement_principal', 0),
-        config_data.get('initial_contribution', 0),
-        config_data.get('increase_contribution', 0),
-        config_data.get('interest_rate', 0),
-        config_data.get('years', 0))
-
-    investment_values = {
-        "total_employee_stockplan": total_employee_stockplan,
-        "school_expenses": school_expenses,
-        "balance_with_expenses": balance_with_expenses,
-        "future_retirement_value_contrib": future_retirement_value_contrib
-    }
-
-    utils.log_data(investment_values, title="Future Value", format_as_currency=True)
-    return investment_values
 
 def calculate_investment_values(config_data, annual_surplus):
     logging.debug("Entering <function ")
@@ -1234,9 +1246,9 @@ def calculate_investment_values(config_data, annual_surplus):
     # School Expenses Calculation
     school_expenses = calculate_school_expenses(config_data, flatten=True)
 
-    # Balance with Expenses Calculation, using total investment balance
+    # Investment Balance with Expenses Calculation, using total investment balance
     logging.info(f"Investments & Expenses ")
-    balance_with_expenses = calculate_balance(
+    investment_balance_after_expenses = calculate_balance(
         total_investment_balance,  # Now using summed investment balance
         config_data.get('interest_rate', 0),
         config_data.get('years', 0),
@@ -1260,7 +1272,7 @@ def calculate_investment_values(config_data, annual_surplus):
     investment_values = {
         "total_employee_stockplan": total_employee_stockplan,
         "school_expenses": school_expenses,
-        "balance_with_expenses": balance_with_expenses,
+        "investment_balance_after_expenses": investment_balance_after_expenses,
         "future_retirement_value_contrib": future_retirement_value_contrib
     }
 
@@ -1317,11 +1329,7 @@ def calculate_house_data(current_house, config_data, new_house):
         return None
 
     # Initialize variables to ensure they have default values
-    new_house_cost_basis = 0
-    new_house_future_value = 0
-    new_house_fees = 0
-    invest_capital = 0
-    house_capital_investment = 0
+    new_house_cost_basis = new_house_future_value = new_house_fees = invest_capital = house_capital_investment = sale_basis = total_commission = capital_gain = house_net_worth = capital_from_house = 0
 
     # When owning the house
     if config_data["home_tenure"] == "Own":
@@ -1340,8 +1348,9 @@ def calculate_house_data(current_house, config_data, new_house):
 
     elif config_data["home_tenure"] == "Rent":
         if current_house:
-            logging.info("Current House Found")
-            sale_basis, total_commission, capital_gain, house_net_worth, capital_from_house = calculate_house_values(current_house)
+            logging.info("Home_tenure set to Rent and Current House object found")
+            _, _, _, _, capital_from_house = calculate_house_values(current_house)
+            logging.info(f"Sell current house and retrieve capital_from_house: {capital_from_house}")
         else:
             logging.error("Current House Not Found")
             return None
@@ -1400,36 +1409,107 @@ def calculate_future_house_values(new_house, config_data, current_house, new_hou
     return house_networth_future, house_value_future, remaining_principal
 
 def calculate_future_net_worth_houseinfo(new_house, calculated_data, house_info):
-    logging.debug("Entering calculate_future_net_worth_houseinfo")
+    logging.debug("Entered calculate_future_net_worth_houseinfo")
 
-    # Retrieve calculated data
+    # Retrieve calculated data with default values
     future_retirement_value_contrib = calculated_data.get("future_retirement_value_contrib", 0)
-    balance_with_expenses = calculated_data.get("balance_with_expenses", 0)
+    investment_balance_after_expenses = calculated_data.get("investment_balance_after_expenses", 0)
     total_employee_stockplan = calculated_data.get("total_employee_stockplan", 0)
+    investment_projected_growth = calculated_data.get("investment_projected_growth", 0)
 
-    # Check for house_info keys, set to 0 if missing
+    logging.debug(f"Retrieved calculated_data - "
+                  f"Future Retirement Contribution: {future_retirement_value_contrib}, "
+                  f"Balance with Expenses: {investment_balance_after_expenses}, "
+                  f"Total Employee Stock Plan: {total_employee_stockplan}, "
+                  f"Investment Projected Growth: {investment_projected_growth}")
+
+    # Retrieve house info, setting defaults if keys are missing
+    new_house_value = house_info.get("new_house_value", 0)
+    house_capital_investment = house_info.get("house_capital_investment", 0)
+    house_networth_future = house_info.get("house_networth_future", 0)
+    sell_house = house_info.get("sell_house", False)  # Get sell_house flag, default to False if not present
+
+    logging.debug(f"Retrieved house_info - "
+                  f"New House Value: {new_house_value}, "
+                  f"House Capital Investment: {house_capital_investment}, "
+                  f"House Net Worth Future: {house_networth_future}, "
+                  f"Sell House: {sell_house}")
+
+    # Calculation based on whether a new house is involved
+    if new_house:
+        combined_networth_future = (
+            future_retirement_value_contrib + new_house_value +
+            investment_balance_after_expenses + house_capital_investment + total_employee_stockplan
+        )
+        logging.info(f"{'New House?':<23} Yes - Included New House Value: {new_house_value} and "
+                     f"House Capital Investment: {house_capital_investment}")
+    else:
+        # Only include investment_projected_growth if sell_house is True
+        if sell_house:
+            combined_networth_future = (
+                future_retirement_value_contrib + investment_balance_after_expenses + 
+                house_networth_future + investment_projected_growth + total_employee_stockplan
+            )
+            logging.info(f"{'New House?':<23} No - House will be sold, including House Net Worth Future: {house_networth_future} "
+                         f"and Investment Projected Growth: {investment_projected_growth}")
+        else:
+            combined_networth_future = (
+                future_retirement_value_contrib + investment_balance_after_expenses + 
+                house_networth_future + total_employee_stockplan
+            )
+            logging.info(f"{'New House?':<23} No - House will not be sold, included House Net Worth Future: {house_networth_future}")
+
+    # Log the final projected net worth
+    logging.info(f"{'Projected Net Worth:':<23} {format_currency(combined_networth_future)}")
+
+    return combined_networth_future
+
+
+def _calculate_future_net_worth_houseinfo(new_house, calculated_data, house_info):
+    logging.debug("Entered calculate_future_net_worth_houseinfo")
+
+    # Retrieve calculated data with default values
+    future_retirement_value_contrib = calculated_data.get("future_retirement_value_contrib", 0)
+    investment_balance_after_expenses = calculated_data.get("investment_balance_after_expenses", 0)
+    total_employee_stockplan = calculated_data.get("total_employee_stockplan", 0)
+    investment_projected_growth = calculated_data.get("investment_projected_growth", 0)
+
+    logging.debug(f"Retrieved calculated_data - "
+                  f"Future Retirement Contribution: {future_retirement_value_contrib}, "
+                  f"Balance with Expenses: {investment_balance_after_expenses}, "
+                  f"Total Employee Stock Plan: {total_employee_stockplan}, "
+                  f"Investment Projected Growth: {investment_projected_growth}")
+
+    # Retrieve house info, setting defaults if keys are missing
     new_house_value = house_info.get("new_house_value", 0)
     house_capital_investment = house_info.get("house_capital_investment", 0)
     house_networth_future = house_info.get("house_networth_future", 0)
 
-    # Calculation based on new_house existence
+    logging.debug(f"Retrieved house_info - "
+                  f"New House Value: {new_house_value}, "
+                  f"House Capital Investment: {house_capital_investment}, "
+                  f"House Net Worth Future: {house_networth_future}")
+
+    # Calculation based on whether a new house is involved
     if new_house:
         combined_networth_future = (
-            future_retirement_value_contrib + new_house_value + 
-            balance_with_expenses + house_capital_investment + total_employee_stockplan
+            future_retirement_value_contrib + new_house_value +
+            investment_balance_after_expenses + house_capital_investment + total_employee_stockplan
         )
-        logging.info(f"{'New House?':<23} Yes")
+        logging.info(f"{'New House?':<23} Yes - Included New House Value: {new_house_value} and "
+                     f"House Capital Investment: {house_capital_investment}")
     else:
         combined_networth_future = (
-            future_retirement_value_contrib + balance_with_expenses + 
-            house_networth_future + total_employee_stockplan
+            future_retirement_value_contrib + investment_balance_after_expenses + 
+            house_networth_future + investment_projected_growth + total_employee_stockplan
         )
-        logging.info(f"{'New House?':<23} No")
+        logging.info(f"{'New House?':<23} No - Included Existing House Net Worth Future: {house_networth_future} and "
+                     f"Investment Projected Growth: {investment_projected_growth}")
 
     # Log the final projected net worth
     logging.info(f"{'Projected Net Worth:':<23} {format_currency(combined_networth_future)}")
-    return combined_networth_future
 
+    return combined_networth_future
 
 
 def calculate_financial_values(config_data, tax_rate):
@@ -1857,56 +1937,76 @@ def determine_report_name(scenarios_data, report_name_prefix="scenario_"):
 
 
 def generate_report(config_data, scenario_name):
-    logging.debug(f"Scenario: {scenario_name}")
+    logging.debug(f"Starting report generation for scenario: {scenario_name}")
 
     if not config_data:
         logging.error("config_data is missing")
         raise ValueError("config_data is missing")
 
-    # merge_children_variants(general_config, scenarios_data)
-
+    logging.debug(f"Initial config_data keys: {list(config_data.keys())}")
+    
     # Apply children variant
+    logging.debug("Applying children variant")
     children_data = apply_children_variant(config_data.get('children', []), config_data)
-    config_data['children'] = children_data  # Store processed children data
+    config_data['children'] = children_data
+    logging.debug(f"Processed children data: {children_data}")
 
     # Apply variants for both spouses
+    logging.debug("Applying spouse1 variant")
     spouse1_data = apply_spouse_variant(config_data.get('spouse1', {}), 'spouse1', config_data)
+    logging.debug(f"Processed spouse1 data: {spouse1_data}")
+
+    logging.debug("Applying spouse2 variant")
     spouse2_data = apply_spouse_variant(config_data.get('spouse2', {}), 'spouse2', config_data)
+    logging.debug(f"Processed spouse2 data: {spouse2_data}")
+
     config_data['spouse1_data'] = spouse1_data
     config_data['spouse2_data'] = spouse2_data
 
     tax_rate = calculate_tax_rate(config_data)
+    logging.info(f"Calculated tax rate: {tax_rate}")
+
+    logging.debug("Calculating financial values")
     calculated_data = calculate_financial_values(config_data, tax_rate)
     calculated_data["scenario_name"] = scenario_name
+    logging.debug(f"Calculated data: {calculated_data}")
+
     total_investment_balance = calculate_total_investments(config_data.get('INVESTMENTS', {}))
-    logging.info(f"total_investment_balance: {total_investment_balance}")
+    logging.info(f"Total investment balance: {total_investment_balance}")
     calculated_data["total_investment_balance"] = total_investment_balance
+
     total_retirement_principal = calculate_retirement_principal(config_data.get('RETIREMENT', []))
-    logging.info(f"total_retirement_principal: {total_retirement_principal}")
+    logging.info(f"Total retirement principal: {total_retirement_principal}")
     calculated_data["total_retirement_principal"] = total_retirement_principal
+
+    logging.debug("Calculating house info")
     current_house, new_house, house_info = calculate_house_info(config_data)
     
-    # Check if house_info is None
     if house_info is None:
         logging.error("house_info is None. Ensure calculate_house_info returns valid data.")
         raise ValueError("house_info is None. Ensure calculate_house_info returns valid data.")
-    
-    calculate_expenses_and_net_worth(config_data, calculated_data, house_info)
+    logging.debug(f"House info: {house_info}")
 
-    # Ensure that invest_capital_from_house_sale is safe to access
     invest_capital_from_house_sale = house_info.get("invest_capital", 0)
-    
-    # Check if invest_capital_from_house_sale is valid
+    logging.info(f"Investment capital from house sale: {invest_capital_from_house_sale}")
+
     if invest_capital_from_house_sale is None:
         logging.warning("invest_capital_from_house_sale is None; defaulting to 0.")
         invest_capital_from_house_sale = 0
 
+    logging.debug("Calculating future values")
     sale_of_house_investment = calculate_future_value(invest_capital_from_house_sale, 0, 0, config_data["interest_rate"], config_data["years"])
     investment_projected_growth = calculate_future_value(total_investment_balance, 0, 0, config_data["interest_rate"], config_data["years"])
-    investment_principal = calculated_data.get("balance_with_expenses", 0)
+    calculated_data["investment_projected_growth"] = investment_projected_growth
+
+    calculate_expenses_and_net_worth(config_data, calculated_data, house_info)
+
+    logging.debug(f"Projected growth for investments: {investment_projected_growth}")
+    investment_principal = calculated_data.get("investment_balance_after_expenses", 0)
     house_capital_investment = house_info.get("house_capital_investment", 0)
 
-    # Prepare report data
+   # Prepare report data
+    logging.debug("Preparing report data.")
     report_data = {
         "config_data": config_data,
         "calculated_data": calculated_data,
@@ -1917,15 +2017,29 @@ def generate_report(config_data, scenario_name):
 
     # Generate HTML sections for the report
     try:
-        future_value_html = report_html_generator.generate_future_value_html_table(report_data)
-        current_value_html = report_html_generator.generate_current_networth_html_table(report_data, invest_capital_from_house_sale, sale_of_house_investment, investment_projected_growth)
-        scenario_summary_html = report_html_generator.generate_section_html("Scenario", calculated_data.get("scenario_info", {}))
-        yearly_net_html = report_html_generator.generate_section_html("Cash Flow Before School Fees", calculated_data.get("yearly_income_report", {}), custom_formatter=format_currency)
+        logging.debug("Generating HTML sections")
+        future_value_html = report_html_generator.generate_future_value_html_table(
+            report_data, invest_capital_from_house_sale, sale_of_house_investment, investment_projected_growth
+        )
+        logging.debug("Generated future value HTML table.")
 
-        # Retrieve and ensure values are numeric
+        current_value_html = report_html_generator.generate_current_networth_html_table(
+            report_data, invest_capital_from_house_sale, sale_of_house_investment, investment_projected_growth
+        )
+        logging.debug("Generated current net worth HTML table.")
+
+        scenario_summary_html = report_html_generator.generate_section_html(
+            "Scenario", calculated_data.get("scenario_info", {})
+        )
+        logging.debug("Generated scenario summary HTML.")
+
+        yearly_net_html = report_html_generator.generate_section_html(
+            "Cash Flow Before School Fees", calculated_data.get("yearly_income_report", {}), custom_formatter=format_currency
+        )
+        logging.debug("Generated yearly net HTML.")
+
         yearly_net_minus_school = float(calculated_data.get("yearly_net_minus_school", 0))
         avg_yearly_fee = float(calculated_data.get("avg_yearly_fee", 0))
-
         cashflow_After_school_data = {
             "Average Annual School Fees": avg_yearly_fee,
             "Cash Flow After School Fees": yearly_net_minus_school,
@@ -1934,24 +2048,43 @@ def generate_report(config_data, scenario_name):
         total_after_fees_html = report_html_generator.generate_section_html(
             "Cash Flow After School Fees", cashflow_After_school_data, custom_formatter=format_currency
         )
+        logging.debug("Generated cash flow after school fees HTML.")
 
         assumptions_html = report_html_generator.generate_section_html(
             section_title="Assumptions", data=retrieve_assumptions(config_data, tax_rate), custom_formatter=None, collapsible=True
         )
+        logging.debug("Generated assumptions HTML.")
 
         monthly_expenses_html = report_html_generator.generate_section_html(
             section_title="Monthly Expenses Breakdown", data=calculated_data.get("monthly_expenses_breakdown", {}), custom_formatter=format_currency, collapsible=True
         )
-        
+        logging.debug("Generated monthly expenses breakdown HTML.")
+
         expenses_not_factored_html = report_html_generator.generate_section_html(
             section_title="Expenses Not Factored In", data=calculated_data.get("expenses_not_factored_in_report", {}), custom_formatter=None, collapsible=True
         )
+        logging.debug("Generated expenses not factored in HTML.")
 
-        school_expenses_table_html = report_html_generator.generate_table_for_child(config_data, headers=["School", "Year", "Cost"])
-        retirement_table_html = report_html_generator.generate_retirement_table(config_data, table_class="retirement-table")
-        investment_table_html = report_html_generator.generate_investment_table(config_data.get("Investment", {}), format_currency)
+        school_expenses_table_html = report_html_generator.generate_table_for_child(
+            config_data, headers=["School", "Year", "Cost"]
+        )
+        logging.debug("Generated school expenses table HTML.")
+
+        retirement_table_html = report_html_generator.generate_retirement_table(
+            config_data, table_class="retirement-table"
+        )
+        logging.debug("Generated retirement table HTML.")
+
+        investment_table_html = report_html_generator.generate_investment_table(
+            config_data.get("INVESTMENTS", {}), format_currency
+        )
+        logging.debug("Generated investment table HTML.")
+
         current_house_html = report_html_generator.generate_current_house_html(current_house)
+        logging.debug("Generated current house HTML.")
+
         new_house_html = report_html_generator.generate_new_house_html(new_house)
+        logging.debug("Generated new house HTML.")
 
     except Exception as e:
         logging.error(f"Error generating HTML sections for scenario '{scenario_name}': {str(e)}")
@@ -1980,9 +2113,10 @@ def generate_report(config_data, scenario_name):
 
     # Generate the complete report HTML
     try:
+        logging.debug(f"Generating complete HTML report for scenario: {scenario_name}")
         scenario_html = report_html_generator.generate_html(report_data)
         report_filename = Path(__file__).parent.parent / f"reports/detail_{scenario_name}.html"
-        
+        logging.debug(f"report_filename: {report_filename}")
         # Ensure the reports directory exists
         Path(report_filename.parent).mkdir(parents=True, exist_ok=True)
 
@@ -1994,6 +2128,7 @@ def generate_report(config_data, scenario_name):
         logging.error(f"Failed to write report {report_filename}: {e}")
         raise
 
+    logging.debug(f"Report generation completed for scenario: {scenario_name}") 
     return summary_data
 
 

@@ -44,41 +44,53 @@ def setup_logging(main_log_file=None, scenario_log_file=None, log_dir: Union[str
     # Scenario Log File Handler (overwrite mode, only if provided)
     if scenario_log_file:
         scenario_log_path = log_dir / scenario_log_file  # Construct the path using log_dir
-        scenario_file_handler = logging.FileHandler(scenario_log_path, mode='w')
+        scenario_file_handler = logging.FileHandler(scenario_log_path, encoding='utf-8', mode='w')
         scenario_file_handler.setLevel(log_level)
         scenario_file_handler.setFormatter(log_formatter)
         logger.addHandler(scenario_file_handler)
 
     logger.info("Logging is set up.")
 
-def log_data(data: Union[Dict, List], title: Optional[str] = None, format_as_currency: bool = False) -> None:
+def log_data(data: Union[Dict, List], 
+             title: Optional[str] = None, 
+             format_as_currency: bool = False, 
+             max_entries: int = 5, 
+             log_level: int = logging.INFO) -> None:
     """
-    Logs a dictionary or list in a structured format.
+    Logs a dictionary or list in a structured format, with options for summarizing and formatting.
 
     :param data: The data to log (dict or list).
     :param title: Optional title to be logged before the data.
     :param format_as_currency: If True, formats numbers in the data as currency.
+    :param max_entries: Maximum number of entries to log (useful for large data).
+    :param log_level: Logging level (defaults to INFO).
     :return: None
     """
     if title:
-        logging.info(f"--- {title} ---")
+        logging.log(log_level, f"--- {title} ---")
+
+    def log_dict(d: Dict):
+        if format_as_currency:
+            formatted_data = {k: format_currency(v) if isinstance(v, (int, float)) else v for k, v in list(d.items())[:max_entries]}
+        else:
+            formatted_data = dict(list(d.items())[:max_entries])
+        logging.log(log_level, formatted_data)
+        if len(d) > max_entries:
+            logging.log(log_level, f"... Truncated, {len(d) - max_entries} more entries not shown.")
+
+    def log_list(l: List):
+        if format_as_currency:
+            formatted_list = [format_currency(item) if isinstance(item, (int, float)) else item for item in l[:max_entries]]
+        else:
+            formatted_list = l[:max_entries]
+        logging.log(log_level, formatted_list)
+        if len(l) > max_entries:
+            logging.log(log_level, f"... Truncated, {len(l) - max_entries} more entries not shown.")
 
     if isinstance(data, dict):
-        if format_as_currency:
-            # Format each value as currency if it is a number
-            formatted_data = {k: format_currency(v) if isinstance(v, (int, float)) else v for k, v in data.items()}
-            logging.info(formatted_data)
-        else:
-            logging.info(data)
-
+        log_dict(data)
     elif isinstance(data, list):
-        # If data is a list, log each item
-        if format_as_currency:
-            formatted_list = [format_currency(item) if isinstance(item, (int, float)) else item for item in data]
-            logging.info(formatted_list)
-        else:
-            logging.info(data)
-
+        log_list(data)
     else:
         logging.warning("Unsupported data type provided to log_data.")
 

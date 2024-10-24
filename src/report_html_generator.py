@@ -146,34 +146,69 @@ def format_percentage(value: float) -> str:
 
 def calculate_safe_withdrawal(total_assets: float, rate: float = 0.04) -> float:
     """Calculates the safe withdrawal amount based on total assets and a safe withdrawal rate."""
-    return total_assets * rate
+    
+    logging.debug(f"Calculating safe withdrawal: total_assets={total_assets}, rate={rate}")
+    
+    withdrawal_amount = total_assets * rate
+    
+    logging.debug(f"Calculated withdrawal amount: {withdrawal_amount}")
+    
+    return withdrawal_amount
 
-def generate_future_value_html_table(report_data):
+import logging
+
+# Configure logging
+logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
+
+def generate_future_value_html_table(
+    report_data: dict, 
+    capital_from_house_sale: float, 
+    projected_investment: float, 
+    projected_growth: float
+) -> str:
     """Generates HTML content for the future value section of the financial report."""
+
+    logging.debug("Starting generation of future value HTML table.")
+    
     # Unpack report data for better readability
     house_info = report_data["house_info"]
     calc_data = report_data["calculated_data"]
     config_data = report_data["config_data"]
     
+    logging.debug(f"Report data unpacked: house_info={house_info}, calc_data={calc_data}, config_data={config_data}")
+    
     # Assign key variables
     years = config_data["years"]
     interest_rate = config_data["interest_rate"]
     annual_growth_rate = config_data.get("house", {}).get("annual_growth_rate", 0)  # Default to 0 if not available
+
+    logging.debug(f"Years={years}, Interest rate={interest_rate}, Annual growth rate={annual_growth_rate}")
     
     # House and investment details
     new_house = house_info["new_house"]
     house_networth_future = house_info["house_networth_future"]
     house_capital_investment = house_info["house_capital_investment"]
     new_house_value = house_info["new_house_value"]
+    
+    logging.debug(f"House details: new_house={new_house}, house_networth_future={house_networth_future}, house_capital_investment={house_capital_investment}, new_house_value={new_house_value}")
 
     # Calculated data
     total_employee_stockplan = calc_data["total_employee_stockplan"]
-    balance_with_expenses = calc_data["balance_with_expenses"]
+    investment_balance_after_expenses = calc_data["investment_balance_after_expenses"]
     future_retirement_value_contrib = calc_data["future_retirement_value_contrib"]
     combined_networth_future = calc_data["combined_networth_future"]
 
+    logging.debug(f"Calculated data: total_employee_stockplan={total_employee_stockplan}, investment_balance_after_expenses={investment_balance_after_expenses}, future_retirement_value_contrib={future_retirement_value_contrib}, combined_networth_future={combined_networth_future}")
+
     # Total retirement assets
-    total_retirement_assets = future_retirement_value_contrib + balance_with_expenses + total_employee_stockplan
+    total_retirement_assets = (
+        future_retirement_value_contrib 
+        + investment_balance_after_expenses 
+        + total_employee_stockplan
+        + projected_investment
+    )
+
+    logging.debug(f"Total retirement assets: {total_retirement_assets}")
 
     # Calculations
     safe_withdrawal_amount = calculate_safe_withdrawal(total_retirement_assets)
@@ -181,6 +216,11 @@ def generate_future_value_html_table(report_data):
     oneyear_stock_value = total_retirement_assets * interest_rate
     oneyear_growth = oneyear_house_value + oneyear_stock_value
 
+    logging.debug(f"One-year growth: House value={oneyear_house_value}, Stock value={oneyear_stock_value}, Total growth={oneyear_growth}")
+    logging.debug(f"Safe withdrawal amount: {safe_withdrawal_amount}")
+        
+    logging.debug(f"capital_from_house_sale: {capital_from_house_sale}")
+    logging.debug(f"projected_investment: {projected_investment}")
     # HTML table rows
     rows = [
         generate_net_worth_row(
@@ -189,7 +229,7 @@ def generate_future_value_html_table(report_data):
         ),
         generate_net_worth_row(
             "House Re-Investment",
-            house_capital_investment,
+            projected_investment,
             f"This represents the capital that will be reinvested following the sale of the house, reflecting its value after {years} years of anticipated growth."
         ),
         generate_net_worth_row(
@@ -198,7 +238,7 @@ def generate_future_value_html_table(report_data):
         ),
         generate_net_worth_row(
             "Investment Balance",
-            balance_with_expenses,
+            investment_balance_after_expenses,
         ),
         generate_net_worth_row(
             "Retirement Balance",
@@ -207,7 +247,7 @@ def generate_future_value_html_table(report_data):
         generate_net_worth_row(
             "Total Investment Assets",
             total_retirement_assets,
-            "The total investment assets include the sum of your investment balance, retirement principal, and Stock Plan Investment."
+            "The total investment assets include the sum of your investment balance, retirement principal, Stock Plan Investment, and house re-investment."
         ),
         generate_net_worth_row(
             "Net Worth",
@@ -224,6 +264,8 @@ def generate_future_value_html_table(report_data):
         ),
     ]
 
+    logging.debug("HTML table rows generated.")
+    
     # Combine all rows into the table
     html_content = f"""
     <div class='table-container'>
@@ -232,7 +274,11 @@ def generate_future_value_html_table(report_data):
         </table>
     </div>
     """
+
+    logging.debug("HTML content generated successfully.")
+    
     return html_content
+
 
 def generate_tooltip(icon="ℹ️", tooltip_text="", position="top"):
     """Generates HTML for a customizable tooltip.
@@ -263,9 +309,11 @@ def generate_net_worth_row(label, net_worth_value, tooltip_text=None):
     Returns:
         str: HTML string for the row.
     """
+    logging.debug(f"Generating net worth row: label={label}, net_worth_value={net_worth_value}, tooltip_text={tooltip_text}")
+    
     tooltip_html = generate_tooltip(tooltip_text=tooltip_text) if tooltip_text else ""
     
-    return f"""
+    html_row = f"""
         <tr>
             <th>{label}</th>
             <td>
@@ -276,6 +324,11 @@ def generate_net_worth_row(label, net_worth_value, tooltip_text=None):
             </td>
         </tr>
     """
+    
+    logging.debug(f"Generated HTML row: {html_row.strip()}")
+    
+    return html_row
+
 
 def generate_current_networth_html_table(
     report_data: dict, 
@@ -319,6 +372,8 @@ def generate_current_networth_html_table(
     oneyear_house_value = house_net_worth * annual_growth_rate 
     oneyear_stock_value = total_retirement_assets * interest_rate 
     oneyear_growth = oneyear_house_value + oneyear_stock_value
+
+    logging.debug(f"capital_from_house_sale: {capital_from_house_sale}")
 
     # HTML table rows
     rows = [
@@ -734,7 +789,7 @@ def generate_html(report_data):
             formatted_data += f"{safe_int_conversion(data)}"
         return formatted_data
 
-    investment_principal = report_data["calculated_data"].get("balance_with_expenses", 0)
+    investment_principal = report_data["calculated_data"].get("investment_balance_after_expenses", 0)
     house_capital_investment = report_data["house_info"].get("house_capital_investment", 0)
 
     # Ensure both are floats or ints and handle None cases if necessary
@@ -748,6 +803,7 @@ def generate_html(report_data):
     # Generate the scenario filename
     scenario_full_name = report_data["calculated_data"].get("scenario_name", "index")
     scenario_filename = f"scenario_{scenario_full_name}.html"
+    scenario_link = f"scenario_{scenario_full_name}"
 
     # Start generating HTML content
     logging.debug("Generating HTML content for the report.")
@@ -768,13 +824,13 @@ def generate_html(report_data):
                 <h2 id='detail-title'>Detail</h2>
                 <div id='content' class='section-content'>
                     <p><strong>Status:</strong> {viable_status}</p>
-                    <p><a href="{scenario_filename}">View Full Scenario</a></p>
+                    <p><a href="{scenario_link}">View Full Scenario</a></p>
     """
 
-    future_value_html = generate_future_value_html_table(report_data)
-    formatted_future_title = format_key("Future Value")
-    html_content += f"<button type='button' class='collapsible' onclick='toggleCollapsible(\"future-value\", \"future-value-content\")'>{escape(formatted_future_title)}</button>"
-    html_content += f"<div id='future-value-content' class='content'>{future_value_html}</div>"
+    # future_value_html = build_future_value_html_table(report_data)
+    # formatted_future_title = format_key("Future Value")
+    # html_content += f"<button type='button' class='collapsible' onclick='toggleCollapsible(\"future-value\", \"future-value-content\")'>{escape(formatted_future_title)}</button>"
+    # html_content += f"<div id='future-value-content' class='content'>{future_value_html}</div>"
 
     annual_income_surplus_html = generate_section_html("Annual Income Surplus", report_data["calculated_data"]["annual_surplus"], format_currency)
     annual_income_surplus_title = format_key("Annual Income Surplus")
@@ -910,6 +966,7 @@ def generate_summary_report_html(summary_report_data):
         """Generates HTML for detailed information section."""
         scenario_id = scenario_name.replace(" ", "-").lower()
         detail_filename = f"detail_{scenario_name}.html"
+        detail_name = f"detail_{scenario_name}"
         return f"""
         <aside class='detailed-info' id='{scenario_id}-detail' aria-labelledby='{scenario_id}'>
             <h3>Detailed Information</h3>
@@ -922,7 +979,7 @@ def generate_summary_report_html(summary_report_data):
             <div>{scenario_data["current_house_html"]}</div>
             <div>{scenario_data["new_house_html"]}</div>
             <div>
-                <a href="/view_report/{detail_filename}" aria-label="View detailed information for {escape(scenario_name)}">View Detailed Information</a>
+                <a href="/view_report/{detail_name}" aria-label="View detailed information for {escape(scenario_name)}">View Detailed Information</a>
             </div>
         </aside>
         """
@@ -1050,7 +1107,7 @@ def generate_child_table(child, table_class, headers, child_id):
 
     return table_html
 
-def generate_investment_table(data, custom_formatter=None):
+def _generate_investment_table(data, custom_formatter=None):
     """Generates HTML for a table based on the provided data.
 
     Args:
@@ -1086,6 +1143,51 @@ def generate_investment_table(data, custom_formatter=None):
 
     # Add the total row
     html_content += f"<tr><th>Total</th><td>{custom_formatter(total) if custom_formatter else total}</td></tr>"
+
+    html_content += "</table></div>"
+    return html_content
+
+
+def generate_investment_table(data, custom_formatter=None):
+    """Generates HTML for a table based on the provided data.
+
+    Args:
+        data (dict): The data to be displayed in the table.
+        custom_formatter (function, optional): A custom function to format the values.
+
+    Returns:
+        str: The generated HTML content for the table.
+    """
+    if not data:
+        # Return a message or an empty table if no data is provided
+        return "<p>No investment data available.</p>"
+
+    html_content = ""
+    html_content += f"""
+        <button id="investment-button" class="collapsible" onclick="toggleCollapsible('investment-button', 'investment-content')">Investment Breakdown</button>
+        <div id="investment-content" class="content">
+            <table>
+                <tr><th>Investment Name</th><th>Type</th><th>Amount</th></tr>
+    """
+
+    total = 0
+    if isinstance(data, dict):
+        for key, investment in data.items():
+            # Extract the name, type, and amount from each investment
+            name = investment.get('name', 'Unknown')
+            inv_type = investment.get('type', 'Unknown')
+            amount = investment.get('amount', 0)
+
+            # Format the amount if necessary and add to total
+            formatted_amount = custom_formatter(amount) if custom_formatter else amount
+            total += amount  # Accumulate the total only for numeric 'amount'
+
+            # Add each investment's details to the table
+            html_content += f"<tr><th>{name}</th><td>{inv_type}</td><td>{formatted_amount}</td></tr>"
+
+    # Add the total row
+    formatted_total = custom_formatter(total) if custom_formatter else total
+    html_content += f"<tr><th>Total</th><td colspan='2'>{formatted_total}</td></tr>"
 
     html_content += "</table></div>"
     return html_content
