@@ -178,8 +178,8 @@ def generate_future_value_html_table(
     logging.debug(f"Report data unpacked: house_info={house_info}, calc_data={calc_data}, config_data={config_data}")
     
     # Assign key variables
-    years = config_data["years"]
-    interest_rate = config_data["interest_rate"]
+    years = config_data.get('FINANCIAL_ASSUMPTIONS', {}).get('years', 0)
+    interest_rate = config_data.get('FINANCIAL_ASSUMPTIONS', {}).get('interest_rate', 0)
     annual_growth_rate = config_data.get("house", {}).get("annual_growth_rate", 0)  # Default to 0 if not available
 
     logging.debug(f"Years={years}, Interest rate={interest_rate}, Annual growth rate={annual_growth_rate}")
@@ -356,8 +356,8 @@ def generate_current_networth_html_table(
     config_data = report_data.get("config_data", {})
     calculated_data = report_data.get("calculated_data", {})
 
-    years = config_data.get("years", 0)
-    interest_rate = config_data.get("interest_rate", 0.0)
+    years = config_data.get('FINANCIAL_ASSUMPTIONS', {}).get('years', 0)
+    interest_rate = config_data.get('FINANCIAL_ASSUMPTIONS', {}).get('interest_rate', 0.0)
     annual_growth_rate = config_data.get("house", {}).get("annual_growth_rate", 0.0)
 
     # Calculating necessary values
@@ -1007,7 +1007,7 @@ def generate_summary_report_html(summary_report_data):
     logging.info("Summary report HTML generation complete.")
     return html_content
 
-def generate_table_for_child(child_data, table_class="expense-table", headers=["School Type", "Year", "Cost"]):
+def generate_table_for_child(child_data, table_class="expense-table", headers=["School Type", "Year", "Cost", "Name", "Type"]):
     """Generates HTML table content for a child's educational expenses in a nested structure with collapsible sections.
 
     Args:
@@ -1018,22 +1018,33 @@ def generate_table_for_child(child_data, table_class="expense-table", headers=["
     Returns:
         str: The generated HTML table content.
     """
+    logging.info("Starting to generate tables for children's school expenses.")
+
     if not child_data or "children" not in child_data:
-        # Return a message if no data is provided
+        # Log and return a message if no data is provided
+        logging.warning("No child data or 'children' key not found in provided data.")
         return "<p>No children school expenses data available.</p>"
     
     html_content = ""  # Initialize the HTML content
+    logging.debug(f"Child data found: {child_data}")
 
     for index, child in enumerate(child_data.get("children", [])):
         child_name = escape(child.get('name', 'Unnamed Child'))  # Get and escape the child's name
+        logging.info(f"Processing data for child: {child_name} (Index: {index})")
+
         child_id = f"childDetails-{index}"  # Create a unique ID for each child's details section
+        logging.debug(f"Generated child ID: {child_id}")
 
         # Add the child name as a collapsible button with toggle functionality
         html_content += create_collapsible_button(child_id, child_name)
+        logging.debug(f"Added collapsible button for: {child_name}")
 
         # Generate the table for the child
-        html_content += generate_child_table(child, table_class, headers, child_id)
+        table_html = generate_child_table(child, table_class, headers, child_id)
+        html_content += table_html
+        logging.debug(f"Generated table for: {child_name}")
 
+    logging.info("Completed generating tables for all children.")
     return html_content
 
 def create_collapsible_button(child_id, child_name):
@@ -1065,29 +1076,39 @@ def generate_child_table(child, table_class, headers, child_id):
     Returns:
         str: HTML for the child's expenses table.
     """
+    logging.debug(f"Generating school expense table for child: {child.get('name', 'Unknown')} (ID: {child_id})")
+    
+    # Extract school data
     school_data = child.get("school", {})
+    logging.info(f"School data extracted: {school_data}")
 
     # Combine all entries across school types into one list
     combined_entries = []
     for school_type, entries in school_data.items():
+        logging.debug(f"Processing school type: {school_type} with entries: {entries}")
         for entry in entries:
             combined_entries.append({
                 'school_type': school_type,
                 'year': int(entry.get('year', 0)),
-                'cost': entry.get('cost', 0)
+                'cost': entry.get('cost', 0),
+                'name': entry.get('name', ""),
+                'type': entry.get('type', "")
             })
+
+    if not combined_entries:
+        logging.warning("No school entries found for the child.")
+        return "<p>No school expense entries available for this child.</p>"
 
     # Sort entries by year
     sorted_entries = sorted(combined_entries, key=lambda entry: entry['year'])
-
-    if not sorted_entries:
-        return "<p>No school expense entries available for this child.</p>"
+    logging.debug(f"Sorted school entries: {sorted_entries}")
 
     # Generate the table header
+    logging.info(f"Generating HTML table for child: {child.get('name', 'Unknown')}")
     table_html = f"""
         <table class='{table_class}'>
             <thead>
-                <tr><th>{escape(headers[0])}</th><th>{escape(headers[1])}</th><th>{escape(headers[2])}</th></tr>
+                <tr><th>{escape(headers[0])}</th><th>{escape(headers[1])}</th><th>{escape(headers[2])}</th><th>{escape(headers[3])}</th><th>{escape(headers[4])}</th></tr>
             </thead>
             <tbody>
     """
@@ -1096,8 +1117,11 @@ def generate_child_table(child, table_class, headers, child_id):
     for entry in sorted_entries:
         year = escape(str(entry['year']))  # Convert back to string for HTML
         cost = format_currency(entry['cost'])  # Format cost for readability
+        name = escape(str(entry['name']))
+        type = escape(str(entry['type']))
         school_type = escape(entry['school_type'])
-        table_html += f"<tr><td>{school_type}</td><td>{year}</td><td>{cost}</td></tr>\n"
+        logging.debug(f"Adding row: {school_type}, {year}, {cost}, {name}")
+        table_html += f"<tr><td>{school_type}</td><td>{year}</td><td>{cost}</td><td>{name}</td><td>{type}</td></tr>\n"
 
     table_html += """
             </tbody>
@@ -1105,47 +1129,8 @@ def generate_child_table(child, table_class, headers, child_id):
         </div>  <!-- End of hidden details section -->
     """  # End of child section
 
+    logging.info(f"Completed HTML table generation for child: {child.get('name', 'Unknown')}")
     return table_html
-
-def _generate_investment_table(data, custom_formatter=None):
-    """Generates HTML for a table based on the provided data.
-
-    Args:
-        data (dict or object): The data to be displayed in the table.
-        custom_formatter (function, optional): A custom function to format the values.
-
-    Returns:
-        str: The generated HTML content for the table.
-    """
-    
-    if not data:
-        # Return a message or an empty table if no data is provided
-        return "<p>No investment data available.</p>"
-
-    html_content = ""
-    html_content += f"""
-        <button id="investment-button" class="collapsible" onclick="toggleCollapsible('investment-button', 'investment-content')">Investment Breakdown</button>
-        <div id="investment-content" class="content">
-            <table>
-    """
-
-    total = 0
-    if isinstance(data, dict):
-        for key, value in data.items():
-            formatted_value = custom_formatter(value) if custom_formatter else value
-            total += value  # Accumulate the total
-            html_content += f"<tr><th>{key}</th><td>{formatted_value}</td></tr>"
-    elif hasattr(data, '__dict__'):
-        for attr, value in data.__dict__.items():
-            formatted_value = custom_formatter(value) if custom_formatter else value
-            total += value  # Accumulate the total
-            html_content += f"<tr><th>{attr}</th><td>{formatted_value}</td></tr>"
-
-    # Add the total row
-    html_content += f"<tr><th>Total</th><td>{custom_formatter(total) if custom_formatter else total}</td></tr>"
-
-    html_content += "</table></div>"
-    return html_content
 
 
 def generate_investment_table(data, custom_formatter=None):
@@ -1192,7 +1177,6 @@ def generate_investment_table(data, custom_formatter=None):
     html_content += "</table></div>"
     return html_content
 
-
 def generate_retirement_table(config_data, table_class="retirement-table"):
     """Generates HTML table content for retirement contributions and accounts with toggle functionality for each spouse.
 
@@ -1203,21 +1187,45 @@ def generate_retirement_table(config_data, table_class="retirement-table"):
     Returns:
         str: The generated HTML table content.
     """
-    if not config_data or "RETIREMENT" not in config_data:
+    logging.debug("Starting generate_retirement_table function.")
+
+    # Check if config_data is valid
+    if not config_data or "RETIREMENT" not in config_data or "retirement_contribution_scenarios" not in config_data:
+        logging.warning("No retirement data available in config_data.")
         return "<p>No retirement data available.</p>"
 
     html_content = ""  # Initialize the HTML content
+
+    # Fetch the retirement scenario name and the corresponding contributions
+    retirement_scenario_name = config_data.get("retirement_scenario")
+    logging.debug(f"Retirement scenario name: {retirement_scenario_name}")
+
+    retirement_contributions = config_data["retirement_contribution_scenarios"].get(retirement_scenario_name, {})
+    
+    if not retirement_contributions:
+        logging.warning(f"No retirement contributions data available for the specified scenario: {retirement_scenario_name}.")
+        return "<p>No retirement contributions data available for the specified scenario.</p>"
+
+    # Calculate the grand total balance using the RETIREMENT section
     grand_total_balance = calculate_grand_total_balance(config_data["RETIREMENT"])
+    logging.debug(f"Calculated grand total balance: {grand_total_balance}")
 
     # Add collapsible section for grand total balance at the top
     html_content += create_grand_total_section(grand_total_balance, table_class)
 
-    # Iterate through each parent in the retirement data
+    # Iterate through each spouse in the RETIREMENT data to get accounts
     retirement_data = config_data["RETIREMENT"]
-    for index, parent in enumerate(retirement_data):
-        html_content += create_parent_section(parent, index, table_class)
+    for index, spouse in enumerate(retirement_data):
+        spouse_name = spouse.get("name", "Unknown")
+        contributions = retirement_contributions.get(spouse_name, {})
+        logging.debug(f"Processing spouse: {spouse_name}, Contributions: {contributions}")
 
+        # Generate HTML for this spouse including both accounts and contributions
+        html_content += create_parent_section(spouse_name, spouse, contributions, index, table_class)
+
+    logging.debug("Completed generate_retirement_table function.")
     return html_content
+
 
 def calculate_grand_total_balance(retirement_data):
     """Calculates the grand total balance from retirement accounts.
@@ -1262,7 +1270,125 @@ def create_grand_total_section(grand_total_balance, table_class):
         </div>
     """
 
-def create_parent_section(parent, index, table_class):
+def create_parent_section(spouse_name, account_info, contributions, index, table_class):
+    """Creates the HTML for a parent's section including contributions and accounts.
+
+    Args:
+        spouse_name (str): The name of the parent.
+        account_info (dict): A dictionary containing account data for the parent.
+        contributions (dict): A dictionary containing contribution data for the parent.
+        index (int): The index of the parent.
+        table_class (str): The CSS class to apply to the table.
+
+    Returns:
+        str: HTML for the parent's section.
+    """
+    spouse_name_escaped = escape(spouse_name)
+    parent_id = f"parentDetails-{index}"
+
+    # Start the parent's section
+    html_content = f"""
+        <button id="{parent_id}-button" class="collapsible" onclick="toggleCollapsible('{parent_id}-button', '{parent_id}-content')">{spouse_name_escaped} Retirement</button>
+        <div id="{parent_id}-content" class="content">
+            <h3>Contributions</h3>
+            {create_contributions_table(contributions, table_class)}
+            <h3>Accounts</h3>
+            {create_accounts_table(account_info, table_class)}
+        </div>  <!-- End of hidden details section -->
+    """
+    return html_content
+
+def create_contributions_table(contributions_data, table_class):
+    """Creates the HTML table for contributions, displaying 'annual_contribution_increase'
+    but excluding it from the total.
+
+    Args:
+        contributions_data (dict): A dictionary of contributions data.
+        table_class (str): The CSS class to apply to the table.
+
+    Returns:
+        str: HTML for the contributions table.
+    """
+    logging.debug(f"Creating contributions table with data: {contributions_data}")
+    
+    # Ensure contributions_data is a dictionary
+    if not isinstance(contributions_data, dict):
+        logging.error(f"Expected contributions_data to be a dictionary but got {type(contributions_data).__name__}")
+        return "<p>No contributions data available.</p>"
+
+    html_content = f"""
+        <table class='{table_class}'>
+            <thead>
+                <tr><th>Type</th><th>Contribution</th><th>Amount</th></tr>
+            </thead>
+            <tbody>
+    """
+    total_contributions = 0
+
+    for contribution_type, entries in contributions_data.items():
+        for entry in entries:
+            for contribution, amount in entry.items():
+                stripped_contribution = format_contribution_name(contribution)
+                formatted_amount = "{:,.2f}".format(amount)
+
+                # Check if it's 'annual_contribution_increase'
+                if "annual_contribution_increase" in contribution:
+                    # Display the increase, but don't add it to the total
+                    html_content += f"<tr><td>{escape(contribution_type)}</td><td>{escape(stripped_contribution)} (Increase)</td><td>{formatted_amount}</td></tr>\n"
+                else:
+                    # Display and add to the total
+                    html_content += f"<tr><td>{escape(contribution_type)}</td><td>{escape(stripped_contribution)}</td><td>{formatted_amount}</td></tr>\n"
+                    total_contributions += amount
+
+    formatted_total_contributions = "{:,.2f}".format(total_contributions)
+    html_content += f"<tr><td colspan='2'><strong>Total Contributions (excluding increases)</strong></td><td><strong>{formatted_total_contributions}</strong></td></tr>\n"
+    html_content += "</tbody>\n</table>\n"  # End of contributions table
+    return html_content
+
+
+def create_accounts_table(accounts_data, table_class):
+    """Creates the HTML table for accounts.
+
+    Args:
+        accounts_data (dict): A dictionary of accounts data.
+        table_class (str): The CSS class to apply to the table.
+
+    Returns:
+        str: HTML for the accounts table.
+    """
+    logging.debug(f"Creating accounts table with data: {accounts_data}")
+
+    # Ensure accounts_data is a dictionary
+    if not isinstance(accounts_data, dict):
+        logging.error(f"Expected accounts_data to be a dictionary but got {type(accounts_data).__name__}")
+        return "<p>No accounts data available.</p>"
+
+    # Access the actual accounts part of the data
+    accounts = accounts_data.get("accounts", {})
+    html_content = f"""
+        <table class='{table_class}'>
+            <thead>
+                <tr><th>Type</th><th>Account Name</th><th>Balance</th></tr>
+            </thead>
+            <tbody>
+    """
+    total_accounts_balance = 0
+
+    # Iterate through each account type and its entries
+    for account_type, entries in accounts.items():
+        for entry in entries:
+            for account_name, balance in entry.items():
+                formatted_balance = "{:,.2f}".format(balance)
+                html_content += f"<tr><td>{escape(account_type)}</td><td>{escape(account_name)}</td><td>{formatted_balance}</td></tr>\n"
+                total_accounts_balance += balance
+
+    formatted_total_accounts = "{:,.2f}".format(total_accounts_balance)
+    html_content += f"<tr><td colspan='2'><strong>Total Account Balances</strong></td><td><strong>{formatted_total_accounts}</strong></td></tr>\n"
+    html_content += "</tbody>\n</table>\n"  # End of accounts table
+    return html_content
+
+
+def _create_parent_section(parent, index, table_class):
     """Creates the HTML for a parent's section including contributions and accounts.
 
     Args:
@@ -1288,8 +1414,9 @@ def create_parent_section(parent, index, table_class):
     """
     return html_content
 
-def create_contributions_table(contributions_data, table_class):
-    """Creates the HTML table for contributions.
+def _create_contributions_table(contributions_data, table_class):
+    """Creates the HTML table for contributions, displaying 'annual_contribution_increase'
+    but excluding it from the total.
 
     Args:
         contributions_data (dict): A dictionary of contributions data.
@@ -1312,15 +1439,23 @@ def create_contributions_table(contributions_data, table_class):
             for contribution, amount in entry.items():
                 stripped_contribution = format_contribution_name(contribution)
                 formatted_amount = "{:,.2f}".format(amount)
-                html_content += f"<tr><td>{escape(contribution_type)}</td><td>{escape(stripped_contribution)}</td><td>{formatted_amount}</td></tr>\n"
-                total_contributions += amount
+                
+                # Check if it's 'annual_contribution_increase'
+                if "annual_contribution_increase" in contribution:
+                    # Display the increase, but don't add it to the total
+                    html_content += f"<tr><td>{escape(contribution_type)}</td><td>{escape(stripped_contribution)} (Increase)</td><td>{formatted_amount}</td></tr>\n"
+                else:
+                    # Display and add to the total
+                    html_content += f"<tr><td>{escape(contribution_type)}</td><td>{escape(stripped_contribution)}</td><td>{formatted_amount}</td></tr>\n"
+                    total_contributions += amount
 
     formatted_total_contributions = "{:,.2f}".format(total_contributions)
-    html_content += f"<tr><td colspan='2'><strong>Total Contributions</strong></td><td><strong>{formatted_total_contributions}</strong></td></tr>\n"
+    html_content += f"<tr><td colspan='2'><strong>Total Contributions (excluding increases)</strong></td><td><strong>{formatted_total_contributions}</strong></td></tr>\n"
     html_content += "</tbody>\n</table>\n"  # End of contributions table
     return html_content
 
-def create_accounts_table(accounts_data, table_class):
+
+def _create_accounts_table(accounts_data, table_class):
     """Creates the HTML table for accounts.
 
     Args:
