@@ -977,8 +977,13 @@ def parse_config(args):
     logging.info(f"Parsed config data: {config_data}, tax_rate: {tax_rate}")
     return config_data, tax_rate
 
-def _calculate_total_monthly_expenses(config_data):
-    logging.debug("Entering <function ")
+def calculate_total_monthly_expenses(config_data):
+    logging.debug("Entering <function calculate_total_monthly_expenses>")
+    
+    # Retrieve global excluded expenses list
+    excluded_expenses = config_data.get("EXCLUDED_EXPENSES", [])
+
+    # Determine which house data to use based on the sell_house flag
     sell_house = config_data.get('house', {}).get('sell_house', 0)
     if sell_house:
         logging.info("Using new house data since sell_house is set to True.")
@@ -989,42 +994,59 @@ def _calculate_total_monthly_expenses(config_data):
         monthly_payment = config_data.get('house', {}).get('monthly_payment', 0)
         annual_property_tax = config_data.get('house', {}).get('annual_property_tax', 0)
 
-    # Extract kids activities related to baseball
+    # Calculate monthly property tax
+    monthly_property_tax = int(annual_property_tax / 12)
+
+    # Kids activities: Calculate only if not in excluded expenses
     kids_activities = config_data.get("KIDS_ACTIVITIES", {})
     sports = kids_activities.get("SPORTS", {})
     baseball = sports.get("BASEBALL", {})
-
-    leisure_activities = config_data.get("LEISURE_ACTIVITIES", {})
-    total_leisure_cost = sum(leisure_activities.values())
-    monthly_leisure_cost = int(total_leisure_cost / 12)
-
-    # Calculate baseball team expenses
-    baseball_expenses_total = sum(baseball.values())
+    baseball_expenses_total = sum(baseball.values()) if "Baseball Team" not in excluded_expenses else 0
     monthly_baseball_expenses = int(baseball_expenses_total / 12)
 
-    monthly_property_tax = int(annual_property_tax / 12)
+    # Leisure activities: Calculate only if not in excluded expenses
+    leisure_activities = config_data.get("LEISURE_ACTIVITIES", {})
+    total_leisure_cost = sum(leisure_activities.values()) if "Leisure Activities" not in excluded_expenses else 0
 
+    # Living expenses items: Calculate only if not in excluded expenses
+    living_expenses = config_data.get("LIVING_EXPENSES", {})
+    groceries = living_expenses.get("Groceries", 0) if "Groceries" not in excluded_expenses else 0
+    house_maintenance = living_expenses.get("House_Maintenance", 0) if "House Maintenance" not in excluded_expenses else 0
+    clothing = living_expenses.get("Clothing", 0) if "Clothing" not in excluded_expenses else 0
+
+    # Utilities, Insurance, Subscriptions, and Transportation: Summed conditionally based on exclusions
+    utilities_total = sum(config_data.get("UTILITIES", {}).values()) if "Utilities" not in excluded_expenses else 0
+    insurance_total = sum(config_data.get("INSURANCE", {}).values()) if "Insurance" not in excluded_expenses else 0
+    subscriptions_total = sum(config_data.get("SUBSCRIPTIONS", {}).values()) if "Subscriptions" not in excluded_expenses else 0
+    transportation_total = sum(config_data.get("TRANSPORTATION", {}).values()) if "Transportation" not in excluded_expenses else 0
+
+    # Calculate monthly breakdown and exclude categories as specified
     monthly_expenses_breakdown = {
-        "Mortgage": monthly_payment,
-        "Monthly Property Tax": monthly_property_tax,
-        "Ski Team": int(sum(sports.get("SKI_TEAM", {}).values()) / 12),
+        "Mortgage": monthly_payment if "Mortgage" not in excluded_expenses else 0,
+        "Monthly Property Tax": monthly_property_tax if "Monthly Property Tax" not in excluded_expenses else 0,
+        "Ski Team": int(sum(sports.get("SKI_TEAM", {}).values()) / 12) if "Ski Team" not in excluded_expenses else 0,
         "Baseball Team": monthly_baseball_expenses,
-        "Utilities": sum(config_data.get("UTILITIES", {}).values()),
-        "Insurance": sum(config_data.get("INSURANCE", {}).values()),
-        "Subscriptions": sum(config_data.get("SUBSCRIPTIONS", {}).values()),
-        "Transportation": sum(config_data.get("TRANSPORTATION", {}).values()),
-        "Groceries": config_data.get('Groceries', 0),
-        "Leisure Activities": monthly_leisure_cost,
-        "House Maintenance": config_data.get('monthly_house_maintenance', 0),
-        "Clothing": config_data.get('monthly_clothing', 0)
+        "Utilities": utilities_total,
+        "Insurance": insurance_total,
+        "Subscriptions": subscriptions_total,
+        "Transportation": transportation_total,
+        "Groceries": groceries,
+        "Leisure Activities": total_leisure_cost,
+        "House Maintenance": house_maintenance,
+        "Clothing": clothing
     }
+
+    # Calculate total monthly expenses by summing included categories
     total_monthly_expenses = sum(monthly_expenses_breakdown.values())
     logging.info(f"{'Total monthly expenses:':<27} {format_currency(total_monthly_expenses)}")
+    
+    # Log the detailed breakdown
     utils.log_data(monthly_expenses_breakdown, "Monthly Expenses Breakdown")
     
     return total_monthly_expenses, monthly_expenses_breakdown
 
-def calculate_total_monthly_expenses(config_data):
+
+def _calculate_total_monthly_expenses(config_data):
     logging.debug("Entering <function calculate_total_monthly_expenses>")
     sell_house = config_data.get('house', {}).get('sell_house', 0)
     if sell_house:
