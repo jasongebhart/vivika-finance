@@ -1046,60 +1046,6 @@ def calculate_total_monthly_expenses(config_data):
     return total_monthly_expenses, monthly_expenses_breakdown
 
 
-def _calculate_total_monthly_expenses(config_data):
-    logging.debug("Entering <function calculate_total_monthly_expenses>")
-    sell_house = config_data.get('house', {}).get('sell_house', 0)
-    if sell_house:
-        logging.info("Using new house data since sell_house is set to True.")
-        monthly_payment = config_data.get('new_house', {}).get('monthly_payment', 0)
-        annual_property_tax = config_data.get('new_house', {}).get('annual_property_tax', 0)
-    else:
-        logging.info("Using current house data since sell_house is False or not set.")
-        monthly_payment = config_data.get('house', {}).get('monthly_payment', 0)
-        annual_property_tax = config_data.get('house', {}).get('annual_property_tax', 0)
-
-    # Extract kids activities related to baseball
-    kids_activities = config_data.get("KIDS_ACTIVITIES", {})
-    sports = kids_activities.get("SPORTS", {})
-    baseball = sports.get("BASEBALL", {})
-
-    leisure_activities = config_data.get("LEISURE_ACTIVITIES", {})
-    total_leisure_cost = sum(leisure_activities.values())
-  
-    # Calculate baseball team expenses
-    baseball_expenses_total = sum(baseball.values())
-    monthly_baseball_expenses = int(baseball_expenses_total / 12)
-
-    monthly_property_tax = int(annual_property_tax / 12)
-
-    # Pull living expenses items from LIVING_EXPENSES
-    living_expenses = config_data.get("LIVING_EXPENSES", {})
-    groceries = living_expenses.get("Groceries", 0)
-    house_maintenance = living_expenses.get("House_Maintenance", 0)
-    clothing = living_expenses.get("Clothing", 0)
-
-    monthly_expenses_breakdown = {
-        "Mortgage": monthly_payment,
-        "Monthly Property Tax": monthly_property_tax,
-        "Ski Team": int(sum(sports.get("SKI_TEAM", {}).values()) / 12),
-        "Baseball Team": monthly_baseball_expenses,
-        "Utilities": sum(config_data.get("UTILITIES", {}).values()),
-        "Insurance": sum(config_data.get("INSURANCE", {}).values()),
-        "Subscriptions": sum(config_data.get("SUBSCRIPTIONS", {}).values()),
-        "Transportation": sum(config_data.get("TRANSPORTATION", {}).values()),
-        "Groceries": groceries,
-        "Leisure Activities": total_leisure_cost,
-        "House Maintenance": house_maintenance,
-        "Clothing": clothing
-    }
-
-    total_monthly_expenses = sum(monthly_expenses_breakdown.values())
-    logging.info(f"{'Total monthly expenses:':<27} {format_currency(total_monthly_expenses)}")
-    utils.log_data(monthly_expenses_breakdown, "Monthly Expenses Breakdown")
-    
-    return total_monthly_expenses, monthly_expenses_breakdown
-
-
 def initialize_house_variables(config_data):
     """
     Initialize relevant variables based on configuration data.
