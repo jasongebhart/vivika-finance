@@ -348,6 +348,9 @@ def generate_current_networth_html_table(
     Returns:
         str: HTML content for the current net worth table.
     """
+    logging.debug("Entering generate_current_networth_html_table")
+    logging.info(f"Received report_data with keys: {report_data.keys()}")
+    
     # Constants
     SAFE_WITHDRAWAL_RATE = 0.04
 
@@ -355,17 +358,23 @@ def generate_current_networth_html_table(
     house_info = report_data.get("house_info", {})
     config_data = report_data.get("config_data", {})
     calculated_data = report_data.get("calculated_data", {})
-
+    
+    logging.info("Extracted sections from report_data: house_info, config_data, and calculated_data")
+    
     years = config_data.get('FINANCIAL_ASSUMPTIONS', {}).get('years', 0)
     interest_rate = config_data.get('FINANCIAL_ASSUMPTIONS', {}).get('interest_rate', 0.0)
     annual_growth_rate = config_data.get("house", {}).get("annual_growth_rate", 0.0)
+
+    logging.debug(f"Assumptions - Years: {years}, Interest Rate: {interest_rate}, Annual Growth Rate: {annual_growth_rate}")
 
     # Calculating necessary values
     house_net_worth = house_info.get("house_net_worth", 0.0)
     retirement_principal = calculated_data.get('total_retirement_principal', 0.0)
     combined_networth = calculated_data.get("combined_networth", 0.0)
+    total_investment_balance = calculated_data.get('total_investment_balance', 0.0)
 
-    total_investment_balance = calculated_data['total_investment_balance']
+    logging.debug(f"House Net Worth: {house_net_worth}, Retirement Principal: {retirement_principal}, Combined Net Worth: {combined_networth}, Total Investment Balance: {total_investment_balance}")
+
     total_retirement_assets = capital_from_house_sale + total_investment_balance + retirement_principal
     safe_withdrawal_amount = SAFE_WITHDRAWAL_RATE * total_retirement_assets
 
@@ -373,7 +382,9 @@ def generate_current_networth_html_table(
     oneyear_stock_value = total_retirement_assets * interest_rate 
     oneyear_growth = oneyear_house_value + oneyear_stock_value
 
-    logging.debug(f"capital_from_house_sale: {capital_from_house_sale}")
+    logging.info(f"Calculated Total Retirement Assets: {total_retirement_assets}")
+    logging.info(f"One-Year Projected Growth from House: {oneyear_house_value}, from Investments: {oneyear_stock_value}, Total: {oneyear_growth}")
+    logging.info(f"Safe Withdrawal Amount (4% rule): {safe_withdrawal_amount}")
 
     # HTML table rows
     rows = [
@@ -419,8 +430,9 @@ def generate_current_networth_html_table(
         </table>
     </div>
     """
+    
+    logging.debug("Exiting generate_current_networth_html_table")
     return html_content
-
 
 def generate_income_expenses_html(section_title: str, calculated_data: dict) -> str:
     """
@@ -433,6 +445,8 @@ def generate_income_expenses_html(section_title: str, calculated_data: dict) -> 
     Returns:
         str: The generated HTML content as a collapsible table.
     """
+    logging.debug("Entering generate_income_expenses_html function")
+    logging.info(f"Generating HTML for section title: {section_title}")
 
     html_content = f"""
     <button id='income-expenses-button' type='button' class='collapsible' onclick='toggleCollapsible("income-expenses-button", "income-expenses-content")'>
@@ -450,16 +464,20 @@ def generate_income_expenses_html(section_title: str, calculated_data: dict) -> 
     # Iterate over the calculated data dictionary
     for key, value in calculated_data.items():
         formatted_key = format_key(key)  # Format the key for readability
+        logging.debug(f"Processing key: {key} - formatted as: {formatted_key}")
 
         if isinstance(value, dict):
+            logging.info(f"Key {key} contains nested dictionary data. Generating nested table.")
             nested_table = generate_nested_table(value)
             html_content += f"<tr><td>{formatted_key}</td><td>{nested_table}</td></tr>"
         
         elif isinstance(value, list):
+            logging.info(f"Key {key} contains a list. Generating list HTML.")
             list_html = generate_list(value)
             html_content += f"<tr><td>{formatted_key}</td><td>{list_html}</td></tr>"
-
+        
         else:
+            logging.info(f"Key {key} contains a single value: {value}")
             html_content += f"<tr><td>{formatted_key}</td><td>{format_value(value)}</td></tr>"
 
     html_content += """
@@ -469,19 +487,29 @@ def generate_income_expenses_html(section_title: str, calculated_data: dict) -> 
     </div>
     """
 
+    logging.debug("Exiting generate_income_expenses_html function")
     return html_content
 
-def format_key(key: str) -> str:
+
+def format_key(key) -> str:
     """
     Formats a key for better readability in the HTML table.
     
     Args:
-        key (str): The key to format.
+        key: The key to format. This can be a str or any type.
 
     Returns:
         str: Formatted key for display.
     """
-    return key.replace('_', ' ').capitalize()
+    logging.debug(f"Formatting key: {key} (type: {type(key)})")
+    
+    if isinstance(key, str):
+        return key.replace('_', ' ').capitalize()
+    elif isinstance(key, (int, float)):
+        return str(key)  # Convert to string for numeric keys
+    else:
+        return str(key)  # Convert any other type to string
+
 
 def format_keydetailed(key: str) -> str:
     """
@@ -516,17 +544,41 @@ def format_value(value) -> str:
         # Return the string representation for other types
         return str(value)
 
+
 def generate_nested_table(data: dict) -> str:
-    """Generate HTML for nested tables from a dictionary."""
+    """
+    Generate HTML for nested tables from a dictionary.
+    
+    Args:
+        data (dict): Dictionary containing subcategories and values for HTML table.
+        
+    Returns:
+        str: HTML content for the nested table.
+    """
+    logging.debug("Entering generate_nested_table")
+    logging.debug(f"{data}")
+    logging.info(f"Generating table from data with {len(data)} items")
+
     nested_table = "<table><thead><tr><th>Subcategory</th><th>Value</th></tr></thead><tbody>"
+    
     for sub_key, sub_value in data.items():
-        nested_table += f"<tr><td>{format_key(sub_key)}</td><td>{format_value(sub_value)}</td></tr>"
+        formatted_key = format_key(sub_key)
+        formatted_value = format_value(sub_value)
+        logging.debug(f"Processing sub_key: {sub_key}, formatted_key: {formatted_key}")
+        logging.debug(f"Processing sub_value: {sub_value}, formatted_value: {formatted_value}")
+        
+        nested_table += f"<tr><td>{formatted_key}</td><td>{formatted_value}</td></tr>"
+    
     nested_table += "</tbody></table>"
+    
+    logging.debug("Exiting generate_nested_table")
     return nested_table
+
 
 def generate_list(items: list) -> str:
     """Generate HTML for a list of items."""
     return "<ul>" + "".join(f"<li>{format_value(item)}</li>" for item in items) + "</ul"
+
 
 def generate_configuration_data_html(section_title: str, configuration_data: dict) -> str:
     """
@@ -539,6 +591,8 @@ def generate_configuration_data_html(section_title: str, configuration_data: dic
     Returns:
         str: The generated HTML content as a collapsible table.
     """
+    logging.debug("Entering generate_configuration_data_html function")
+    logging.info(f"Generating HTML for section title: {section_title}")
 
     html_content = f"""
     <button id='calculated-data-button' type='button' class='collapsible' onclick='toggleCollapsible("calculated-data-button", "calculated-data-content")'>
@@ -556,16 +610,20 @@ def generate_configuration_data_html(section_title: str, configuration_data: dic
     # Iterate over the configuration data dictionary
     for key, value in configuration_data.items():
         formatted_key = format_key(key)  # Format the key for readability
-
+        logging.debug(f"Processing key: {key} - formatted as: {formatted_key}")
+        
         if isinstance(value, dict):
+            logging.info(f"Key {key} contains nested dictionary. Generating nested table.")
             nested_table = generate_nested_table(value)
             html_content += f"<tr><td>{formatted_key}</td><td>{nested_table}</td></tr>"
         
         elif isinstance(value, list):
+            logging.info(f"Key {key} contains a list. Generating list HTML.")
             list_html = generate_list(value)
             html_content += f"<tr><td>{formatted_key}</td><td>{list_html}</td></tr>"
-
+        
         else:
+            logging.info(f"Key {key} contains a single value: {value}")
             html_content += f"<tr><td>{formatted_key}</td><td>{format_value(value)}</td></tr>"
 
     html_content += """
@@ -575,6 +633,7 @@ def generate_configuration_data_html(section_title: str, configuration_data: dic
     </div>
     """
 
+    logging.debug("Exiting generate_configuration_data_html function")
     return html_content
 
 
@@ -842,6 +901,7 @@ def generate_html(report_data):
     html_content += generate_income_expenses_html("Income and Expenses", report_data['calculated_data'])
     html_content += generate_current_networth_html(report_data)
 
+    logging.debug("generate_school_expense_coverage_html.")
     school_expense_coverage_html = generate_school_expense_coverage_html(report_data["calculated_data"]["school_expense_coverage"])
     html_content += school_expense_coverage_html
 

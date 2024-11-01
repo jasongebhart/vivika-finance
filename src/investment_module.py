@@ -180,20 +180,22 @@ def calculate_future_value_byrate(present_value, annual_growth_rate, years):
 
 def calculate_total_child_education_expense(config_data):
     """
-    Calculates the total school expenses for each child based on the new JSON structure.
+    Calculates the total school expenses for each child and returns an object representing total cost per year.
 
     Args:
         config_data (dict): Dictionary containing 'children' with each child's 'school' data (college and high school expenses).
 
     Returns:
-        tuple: A tuple containing total school expense, high school total expense, and college total expense.
-               (total_school_expense, highschool_total_school_expense, college_total_school_expense)
+        tuple: A tuple containing total school expense, high school total expense, college total expense,
+               and a dictionary of total cost per year.
+               (total_school_expense, total_highschool_expense, total_college_expense, yearly_costs)
     """
     logging.debug("Entering calculate_total_child_education_expense")
 
     total_school_expense = 0
     total_highschool_expense = 0
     total_college_expense = 0
+    yearly_school_costs = {}  # Dictionary to accumulate costs per year
 
     # Loop through each child and their school expenses
     for child in config_data.get('children', []):
@@ -211,6 +213,7 @@ def calculate_total_child_education_expense(config_data):
             cost = year_data['cost']
             total_college_expense += cost
             total_school_expense += cost
+            yearly_school_costs[year] = yearly_school_costs.get(year, 0) + cost  # Add cost to the specific year
             logging.info(f"{year:<6} {format_currency(cost):>14} {'-':>14}")
 
         for year_data in highschool_expenses:
@@ -218,13 +221,15 @@ def calculate_total_child_education_expense(config_data):
             cost = year_data['cost']
             total_highschool_expense += cost
             total_school_expense += cost
+            yearly_school_costs[year] = yearly_school_costs.get(year, 0) + cost  # Add cost to the specific year
             logging.info(f"{year:<6} {'-':>14} {format_currency(cost):>14}")
-    
+
     logging.info(f"{'Total School Expense:':<36} {format_currency(total_school_expense)}")
     logging.info(f"{'Total High School Expense:':<36} {format_currency(total_highschool_expense)}")
     logging.info(f"{'Total College Expense:':<36} {format_currency(total_college_expense)}")
+    logging.info(f"{'Yearly Costs Breakdown:'} {yearly_school_costs}")
 
-    return total_school_expense, total_highschool_expense, total_college_expense
+    return total_school_expense, total_highschool_expense, total_college_expense, yearly_school_costs
 
 
 def calculate_total_school_expense(config_data):
@@ -759,17 +764,35 @@ def merge_overrides(config_data, overrides):
     deep_merge(config_data, overrides)
     logging.info(f"Config data after applying overrides: {config_data}")
 
+def apply_house_overrides(house, overrides):
+    """
+    Apply overrides to the house data if present in overrides.
+    """
+    if "house" in overrides:
+        logging.info("Applying overrides to house data")
+        deep_merge(house, overrides["house"])
+        logging.info(f"House data after applying overrides: {house}")
+
+
 def deep_merge(dict1, dict2):
     """
-    Recursively merge dict2 into dict1.
+    Recursively merge dict2 into dict1 with logging.
     """
     for key, value in dict2.items():
         if isinstance(value, dict) and key in dict1 and isinstance(dict1[key], dict):
-            # If the value is a dictionary, recurse
+            # Log recursive merge attempt
+            logging.debug(f"Merging nested dictionary for key: '{key}'")
             deep_merge(dict1[key], value)
         else:
-            # Otherwise, replace or add the value
+            # Log key replacement or addition
+            if key in dict1:
+                logging.debug(f"Overriding key '{key}' from '{dict1[key]}' to '{value}'")
+            else:
+                logging.debug(f"Adding new key '{key}' with value '{value}'")
             dict1[key] = value
+
+    # Log result of merge at each level
+    logging.debug(f"Current state after merging: {dict1}")
 
 
 def calculate_spouse_income(spouse_data, tax_rate):
@@ -982,17 +1005,26 @@ def calculate_total_monthly_expenses(config_data):
     
     # Retrieve global excluded expenses list
     excluded_expenses = config_data.get("EXCLUDED_EXPENSES", [])
-
+    home_tenure = config_data.get('home_tenure', 'own')
+    logging.info(f"Home tenure is {home_tenure}")
     # Determine which house data to use based on the sell_house flag
-    sell_house = config_data.get('house', {}).get('sell_house', 0)
-    if sell_house:
-        logging.info("Using new house data since sell_house is set to True.")
-        monthly_payment = config_data.get('new_house', {}).get('monthly_payment', 0)
-        annual_property_tax = config_data.get('new_house', {}).get('annual_property_tax', 0)
+    if home_tenure.lower() == 'rent':
+        logging.info("Home tenure is 'rent'; using rent data.")
+        # Fetch monthly rent from config_data
+        monthly_payment = config_data.get('rent', {}).get('monthly_rent', 0)
+        annual_property_tax = 0  # No property tax for renters
     else:
-        logging.info("Using current house data since sell_house is False or not set.")
-        monthly_payment = config_data.get('house', {}).get('monthly_payment', 0)
-        annual_property_tax = config_data.get('house', {}).get('annual_property_tax', 0)
+        # Determine which house data to use based on the sell_house flag
+        sell_house = config_data.get('house', {}).get('sell_house', 0)
+        if sell_house:
+            logging.info("Using new house data since sell_house is set to True.")
+            monthly_payment = config_data.get('new_house', {}).get('monthly_payment', 0)
+            annual_property_tax = config_data.get('new_house', {}).get('annual_property_tax', 0)
+        else:
+            logging.info("Using current house data since sell_house is False or not set.")
+            monthly_payment = config_data.get('house', {}).get('monthly_payment', 0)
+            annual_property_tax = config_data.get('house', {}).get('annual_property_tax', 0)
+
 
     # Calculate monthly property tax
     monthly_property_tax = int(annual_property_tax / 12)
@@ -1320,10 +1352,11 @@ def calculate_income_expenses(config_data, tax_rate):
                  f"Monthly surplus (annual expenses not included): {format_currency(monthly_surplus)}")
     
     # Calculate school expenses
-    total_school_expense, total_highschool_expense, total_college_expense = calculate_total_child_education_expense(config_data)
+    total_school_expense, total_highschool_expense, total_college_expense, yearly_school_costs = calculate_total_child_education_expense(config_data)
     logging.info(f"Total school expenses: {format_currency(total_school_expense)}, "
                  f"High school expenses: {format_currency(total_highschool_expense)}, "
-                 f"College expenses: {format_currency(total_college_expense)}")
+                 f"College expenses: {format_currency(total_college_expense)}, "
+                 f"Average_yearly_expense: {yearly_school_costs}")
     
     # Yearly income deficit if provide
     annual_expense = config_data.get("ANNUAL_EXPENSES", {}).get('annual_expense', 0)
@@ -1341,6 +1374,7 @@ def calculate_income_expenses(config_data, tax_rate):
         "total_school_expense": total_school_expense,
         "total_highschool_expense": total_highschool_expense,
         "total_college_expense": total_college_expense,
+        "yearly_school_costs": yearly_school_costs,
         "yearly_income_deficit": yearly_income_deficit,
         "expenses_not_factored_in_report": expenses_not_factored_in_report
     }
@@ -1546,6 +1580,7 @@ def calculate_house_data(current_house, config_data, new_house):
     if "home_tenure" not in config_data:
         logging.error("'home_tenure' not found in config_data")
         return None
+    home_tenure = config_data.get("home_tenure", "").lower()
 
     # Determine if a new house is expected
     new_house_expected = config_data.get("new_house_expected", False)
@@ -1558,7 +1593,7 @@ def calculate_house_data(current_house, config_data, new_house):
     new_house_cost_basis = new_house_future_value = new_house_fees = invest_capital = house_capital_investment = sale_basis = total_commission = capital_gain = house_net_worth = capital_from_house = 0
 
     # When owning the house
-    if config_data["home_tenure"] == "Own":
+    if home_tenure == "own":
         sale_basis, total_commission, capital_gain, house_net_worth, capital_from_house = calculate_house_values(current_house)
 
         if new_house:
@@ -1572,7 +1607,7 @@ def calculate_house_data(current_house, config_data, new_house):
             # Handle case where no new house is being purchased
             house_networth_future, house_value_future, remaining_principal = calculate_future_house_values(None, config_data, current_house, 0)
 
-    elif config_data["home_tenure"] == "Rent":
+    elif home_tenure == "rent":
         if current_house:
             logging.info("Home_tenure set to Rent and Current House object found")
             _, _, _, _, capital_from_house = calculate_house_values(current_house)
@@ -1639,13 +1674,15 @@ def calculate_future_net_worth_houseinfo(new_house, calculated_data, house_info)
 
     # Retrieve calculated data with default values
     future_retirement_value_contrib = calculated_data.get("future_retirement_value_contrib", 0)
+    sale_of_house_investment = calculated_data["sale_of_house_investment"] 
     investment_balance_after_expenses = calculated_data.get("investment_balance_after_expenses", 0)
     total_employee_stockplan = calculated_data.get("total_employee_stockplan", 0)
     investment_projected_growth = calculated_data.get("investment_projected_growth", 0)
 
     logging.debug(f"Retrieved calculated_data - "
                   f"Future Retirement Contribution: {future_retirement_value_contrib}, "
-                  f"Balance with Expenses: {investment_balance_after_expenses}, "
+                  f"sale_of_house_investment: {sale_of_house_investment}, "
+                  f"Investment Balance with Expenses: {investment_balance_after_expenses}, "
                   f"Total Employee Stock Plan: {total_employee_stockplan}, "
                   f"Investment Projected Growth: {investment_projected_growth}")
 
@@ -1660,23 +1697,28 @@ def calculate_future_net_worth_houseinfo(new_house, calculated_data, house_info)
                   f"House Capital Investment: {house_capital_investment}, "
                   f"House Net Worth Future: {house_networth_future}, "
                   f"Sell House: {sell_house}")
-
+    logging.debug(f"sale_of_house_investment: {sale_of_house_investment}")
     # Calculation based on whether a new house is involved
     if new_house:
         combined_networth_future = (
             future_retirement_value_contrib + new_house_value +
             investment_balance_after_expenses + house_capital_investment + total_employee_stockplan
         )
-        logging.info(f"{'New House?':<23} Yes - Included New House Value: {new_house_value} and "
+        logging.info(f"{'New House?':<23} Yes")
+        logging.info(f"Included New House Value: {new_house_value} and "
                      f"House Capital Investment: {house_capital_investment}")
     else:
         # Only include investment_projected_growth if sell_house is True
+        logging.info(f"{'New House?':<23} No")
         if sell_house:
             combined_networth_future = (
                 future_retirement_value_contrib + investment_balance_after_expenses + 
-                house_networth_future + investment_projected_growth + total_employee_stockplan
+                house_networth_future + sale_of_house_investment + total_employee_stockplan
             )
-            logging.info(f"{'New House?':<23} No - House will be sold, including House Net Worth Future: {house_networth_future} "
+
+            logging.info(f"future_retirement_value_contrib: {future_retirement_value_contrib} and "
+                         f"investment_balance_after_expenses: {investment_balance_after_expenses} and "
+                         f"sale_of_house_investment: {sale_of_house_investment} and "                    
                          f"and Investment Projected Growth: {investment_projected_growth}")
         else:
             combined_networth_future = (
@@ -2012,51 +2054,41 @@ def calculate_school_expenses(config_data, flatten=False):
     return school_expenses
 
 
-def calculate_school_expenses_old(config_data, calculated_data):
-    """
-
-    Args:
-        config_data (object): Object containing configuration data for the financial scenario.
-        calculated_data (object): Object containing calculated data for the financial scenario.
-
-    Returns:
-        school_expenses_data (dict): Dictionary containing school expenses.
-    """
-    logging.debug("Entering <function ")
-
-    years = config_data.get('FINANCIAL_ASSUMPTIONS', {}).get('years', 0)
-    avg_yearly_fee = calculated_data["total_school_expense"] / years
-    yearly_net_minus_school = calculated_data["annual_surplus"] - (calculated_data["total_school_expense"] / years)
-
-    logging.info(f"{'Average Yearly School Fee:':<34} {format_currency(avg_yearly_fee)}")
-    logging.info(f"{'Yearly Net (Minus School):':<34} {format_currency(yearly_net_minus_school)}")
-
-    school_expenses_data = {
-        "Avg. Yearly School Fee": avg_yearly_fee,
-        "Yearly Net Minus School ": yearly_net_minus_school
-    }
-    return school_expenses_data
-
 def calculate_avg_yearly_school_fee(config_data, calculated_data):
     """
-    Calculate and log the average yearly school fee.
+    Calculate and log the average yearly school fee based on the defined number of years.
 
     Args:
-        config_data (object): Object containing configuration data for the financial scenario.
-        calculated_data (object): Object containing calculated data for the financial scenario.
+        config_data (dict): Object containing configuration data for the financial scenario.
+        calculated_data (dict): Object containing calculated data with yearly school costs.
 
     Returns:
         float: The average yearly school fee.
     """
     logging.debug("Entering calculate_avg_yearly_school_fee function")
 
-    years = config_data.get('FINANCIAL_ASSUMPTIONS', {}).get('years', 0)
-    avg_yearly_fee = calculated_data["total_school_expense"] / years
+    # Get the number of years to consider for average calculation
+    years_to_consider = config_data.get('FINANCIAL_ASSUMPTIONS', {}).get('years', 0)
 
-    # Log the average yearly school fee
+    # Extract yearly costs from the calculated data
+    yearly_school_costs = calculated_data.get("yearly_school_costs", {})
+
+    # Sort and filter yearly costs to only include the defined number of years
+    sorted_years = sorted(yearly_school_costs.keys())[:years_to_consider]
+    relevant_yearly_costs = [yearly_school_costs[year] for year in sorted_years]
+
+    # Calculate the total cost for the selected years
+    total_relevant_cost = sum(relevant_yearly_costs)
+    
+    # Calculate the average cost per year for the selected period
+    avg_yearly_fee = total_relevant_cost / years_to_consider if years_to_consider else 0
+
+    # Log the result
+    logging.info(f"{'years_to_consider:':<34} {years_to_consider}")
     logging.info(f"{'Average Yearly School Fee:':<34} {format_currency(avg_yearly_fee)}")
 
     return avg_yearly_fee
+
 
 
 def calculate_yearly_net_minus_school(config_data, calculated_data):
@@ -2206,7 +2238,8 @@ def determine_report_name(scenarios_data, report_name_prefix="scenario_"):
 
 def generate_report(config_data, scenario_name):
     logging.debug(f"Starting report generation for scenario: {scenario_name}")
-
+    report_filename = None
+    
     if not config_data:
         logging.error("config_data is missing")
         raise ValueError("config_data is missing")
@@ -2239,6 +2272,8 @@ def generate_report(config_data, scenario_name):
 
     # Retrieve overrides
     overrides = config_data.get('overrides', {})
+
+    # Apply overrides to config_data
     merge_overrides(config_data, overrides)
 
     tax_rate = calculate_tax_rate(config_data)
@@ -2263,6 +2298,8 @@ def generate_report(config_data, scenario_name):
 
     logging.debug("Calculating house info")
     current_house, new_house, house_info = calculate_house_info(config_data)
+    # Apply overrides to house data separately
+    apply_house_overrides(house_info, overrides)
     
     if house_info is None:
         logging.error("house_info is None. Ensure calculate_house_info returns valid data.")
@@ -2280,6 +2317,7 @@ def generate_report(config_data, scenario_name):
     interest_rate = config_data.get('FINANCIAL_ASSUMPTIONS', {}).get('interest_rate', 0)
     years = config_data.get('FINANCIAL_ASSUMPTIONS', {}).get('years', 0)
     sale_of_house_investment = calculate_future_value(invest_capital_from_house_sale, 0, 0, interest_rate, years)
+    calculated_data["sale_of_house_investment"] = sale_of_house_investment
     investment_projected_growth = calculate_future_value(total_investment_balance, 0, 0, interest_rate, years)
     calculated_data["investment_projected_growth"] = investment_projected_growth
 
