@@ -1005,10 +1005,11 @@ def calculate_total_monthly_expenses(config_data):
     
     # Retrieve global excluded expenses list
     excluded_expenses = config_data.get("EXCLUDED_EXPENSES", [])
-    home_tenure = config_data.get('home_tenure', 'own')
+    housing_details = config_data.get("HOUSING_DETAILS", {})
+    home_tenure = housing_details.get("home_tenure", "").lower()
     logging.info(f"Home tenure is {home_tenure}")
     # Determine which house data to use based on the sell_house flag
-    if home_tenure.lower() == 'rent':
+    if home_tenure == 'rent':
         logging.info("Home tenure is 'rent'; using rent data.")
         # Fetch monthly rent from config_data
         monthly_payment = config_data.get('rent', {}).get('monthly_rent', 0)
@@ -1024,7 +1025,8 @@ def calculate_total_monthly_expenses(config_data):
             logging.info("Using current house data since sell_house is False or not set.")
             monthly_payment = config_data.get('house', {}).get('monthly_payment', 0)
             annual_property_tax = config_data.get('house', {}).get('annual_property_tax', 0)
-
+    
+    logging.info(f"monthly_payment: {monthly_payment}")
 
     # Calculate monthly property tax
     monthly_property_tax = int(annual_property_tax / 12)
@@ -1043,8 +1045,11 @@ def calculate_total_monthly_expenses(config_data):
     # Living expenses items: Calculate only if not in excluded expenses
     living_expenses = config_data.get("LIVING_EXPENSES", {})
     groceries = living_expenses.get("Groceries", 0) if "Groceries" not in excluded_expenses else 0
-    house_maintenance = living_expenses.get("House_Maintenance", 0) if "House Maintenance" not in excluded_expenses else 0
     clothing = living_expenses.get("Clothing", 0) if "Clothing" not in excluded_expenses else 0
+
+    HOUSING_EXPENSES = config_data.get("HOUSING_EXPENSES", {})
+    house_maintenance = HOUSING_EXPENSES.get("house_maintenance", 0) if "House Maintenance" not in excluded_expenses else 0
+    rent = HOUSING_EXPENSES.get("monthly_rent", 0) if "Rent" not in excluded_expenses else 0
 
     # Utilities, Insurance, Subscriptions, and Transportation: Summed conditionally based on exclusions
     utilities_total = sum(config_data.get("UTILITIES", {}).values()) if "Utilities" not in excluded_expenses else 0
@@ -1055,6 +1060,7 @@ def calculate_total_monthly_expenses(config_data):
     # Calculate monthly breakdown and exclude categories as specified
     monthly_expenses_breakdown = {
         "Mortgage": monthly_payment if "Mortgage" not in excluded_expenses else 0,
+        "Rent": rent if "Rent" not in excluded_expenses else 0,
         "Monthly Property Tax": monthly_property_tax if "Monthly Property Tax" not in excluded_expenses else 0,
         "Ski Team": int(sum(sports.get("SKI_TEAM", {}).values()) / 12) if "Ski Team" not in excluded_expenses else 0,
         "Baseball Team": monthly_baseball_expenses,
@@ -1101,7 +1107,8 @@ def initialize_house_variables(config_data):
         current_house = None
 
     # Initialize new house instance based on the include_new_house flag
-    if config_data.get("include_new_house", False):  # Only create if include_new_house is True
+    include_new_house = config_data.get("HOUSING_DETAILS", {}).get("include_new_house", False)
+    if include_new_house:
         if 'new_house' in config_data and config_data['new_house'] is not None:
             logging.info("A New House is defined.")
             new_house = create_house_instance(config_data['new_house'])
@@ -1336,14 +1343,12 @@ def calculate_income_expenses(config_data, tax_rate):
 
     # Yearly expenses (e.g., vacations, insurance, etc.) from config_data
     annual_vacation = config_data.get("VACATION_EXPENSES", {}).get('annual_vacation', 0)
-    additional_insurance = config_data.get("ANNUAL_EXPENSES", {}).get('additional_insurance', 0)  
-    annual_rent = config_data.get("ANNUAL_EXPENSES", {}).get('annual_rent', 0)
+    monthly_rent = config_data.get("HOUSING_EXPENSES", {}).get('monthly_rent', 0)
     logging.info(f"Annual vacation: {format_currency(annual_vacation)}, "
-                f"Annual insurance: {format_currency(additional_insurance)}, "
-                f"Annual rent: {format_currency(annual_rent)}")
+                f"Monthly rent: {format_currency(monthly_rent)}")
     
     # Total yearly expenses (sum of all yearly costs)
-    total_yearly_expenses = annual_vacation + additional_insurance + annual_rent
+    total_yearly_expenses = annual_vacation + monthly_rent
     logging.info(f"{'total_yearly_expenses':<42} {format_currency(total_yearly_expenses)}")
     
     # Calculate surplus, now factoring in yearly expenses
@@ -1359,7 +1364,7 @@ def calculate_income_expenses(config_data, tax_rate):
                  f"Average_yearly_expense: {yearly_school_costs}")
     
     # Yearly income deficit if provide
-    annual_expense = config_data.get("ANNUAL_EXPENSES", {}).get('annual_expense', 0)
+    annual_expense = config_data.get("MISCELLANEOUS_EXPENSES", {}).get('annual_expense', 0)
     yearly_income_deficit = int(annual_expense)
     logging.info(f"Yearly income deficit: {format_currency(yearly_income_deficit)}")
 
@@ -1385,7 +1390,7 @@ def calculate_income_expenses(config_data, tax_rate):
 def calculate_investment_values(config_data, annual_surplus):
     logging.debug("Entering <function calculate_investment_values>")
     logging.info(f"{'annual_surplus':<32} {format_currency(annual_surplus)}")
-    annual_gain = config_data.get("FINANCIAL_ASSUMPTIONS", {}).get('yearly_gain', 0)
+    annual_gain = config_data.get("MISCELLANEOUS_INCOME", {}).get('annual_gain', 0)
     logging.info(f"{'annual_gain':<32} {annual_gain}")
 
     # Adjust annual surplus with yearly gains
@@ -1422,7 +1427,7 @@ def calculate_investment_values(config_data, annual_surplus):
 
     # Investment Balance with Expenses Calculation, using total investment balance
     logging.info(f"Investments & Expenses ")
-    annual_expense = config_data.get("ANNUAL_EXPENSES", {}).get('annual_expense', 0)
+    annual_expense = config_data.get("MISCELLANEOUS_EXPENSES", {}).get('annual_expense', 0)
     investment_balance_after_expenses = calculate_balance(
         total_investment_balance,  # Now using summed investment balance
         config_data.get('FINANCIAL_ASSUMPTIONS', {}).get('interest_rate', 0),
@@ -1577,10 +1582,13 @@ def calculate_house_data(current_house, config_data, new_house):
         return None
 
     # Proceed only if config_data has the expected keys
-    if "home_tenure" not in config_data:
-        logging.error("'home_tenure' not found in config_data")
+    housing_details = config_data.get("HOUSING_DETAILS", {})
+    home_tenure = housing_details.get("home_tenure", "").lower()
+
+    if not home_tenure:
+        logging.error("'home_tenure' not found in HOUSING_DETAILS section of config_data")
         return None
-    home_tenure = config_data.get("home_tenure", "").lower()
+
 
     # Determine if a new house is expected
     new_house_expected = config_data.get("new_house_expected", False)
@@ -1909,12 +1917,15 @@ def calculate_scenario_info(config_data, calculated_data):
 
     # Extract a summary of high school types from children data
     high_school_summary = summarize_school_types(config_data.get('children', []), school_level="high_school")
+    housing_details = config_data.get("HOUSING_DETAILS", {})
+    home_tenure = housing_details.get("home_tenure", "").lower()
+    residence_location = housing_details.get("residence_location", "")
 
     scenario_info = {
-        "Live in": config_data["residence_location"],
+        "Live in": residence_location,
         "Work Status": get_work_status(config_data),
         "High School": high_school_summary,
-        "Home Tenure": config_data["home_tenure"],
+        "Home Tenure": home_tenure,
         "# of Years": years,
     }
     utils.log_data(scenario_info, title="Scenario Summary")
@@ -1939,9 +1950,8 @@ def calculate_yearly_income_report(config_data, calculated_data):
     parent_one = config_data["parent_one"]
     parent_two = config_data["parent_two"]
     annual_vacation = config_data.get("VACATION_EXPENSES", {}).get('annual_vacation', 0)
-    annual_rent = config_data.get("ANNUAL_EXPENSES", {}).get('annual_rent', 0)
-    annual_expense = config_data.get("ANNUAL_EXPENSES", {}).get('annual_expense', 0)
-    annual_gain = config_data.get("FINANCIAL_ASSUMPTIONS", {}).get('yearly_gain', 0)
+    annual_expense = config_data.get("MISCELLANEOUS_EXPENSES", {}).get('annual_expense', 0)
+    annual_gain = config_data.get("MISCELLANEOUS_INCOME", {}).get('annual_gain', 0)
     # Calculate living expenses data
     yearly_income_report_data = {
         "Annual Income Surplus": calculated_data.get("annual_surplus", 0),  # Default to 0 if missing
@@ -1950,8 +1960,6 @@ def calculate_yearly_income_report(config_data, calculated_data):
         "Annual Gains (other)": annual_gain,
         "Annual Expenses (other)": annual_expense,
         "Annual Vacation": annual_vacation,
-        "Annual Rent": annual_rent,
-        "Annual Additional Insurance": config_data.get("additional_insurance", 0),
     }
     utils.log_data(yearly_income_report_data, title="Annual Income")
     return yearly_income_report_data
@@ -2523,12 +2531,15 @@ def process_scenarios(input_file, scenarios_data, general_config, reports_dir, s
         # Merge the scenario-specific data with scenarios_data
         config_data = {**scenarios_data, **scenario_specific_data}
         years = config_data.get('FINANCIAL_ASSUMPTIONS', {}).get('years', 0)
+        housing_details = config_data.get("HOUSING_DETAILS", {})
+        home_tenure = housing_details.get("home_tenure", "").lower()
+        residence_location = housing_details.get("residence_location", "").lower()
 
         # Log essential config data
         logging.info(f"{'config_data:':<43} {'json'}")
         logging.info(f"{'years:':<43} {years}")
-        logging.info(f"{'residence_location:':<43} {config_data.get('residence_location', 'Not specified')}")
-        logging.info(f"{'home_tenure:':<43} {config_data.get('home_tenure', 'Not specified')}")
+        logging.info(f"{'residence_location:':<43} {residence_location}")
+        logging.info(f"{'home_tenure:':<43} {home_tenure}")
 
         # Generate the report
         try:
@@ -2568,11 +2579,15 @@ def process_scenario(scenario_name, scenarios_data, reports_dir, scenarios_dir="
     # Merge scenario-specific data with scenarios_data (and general_config by extension)
     config_data = {**scenarios_data, **scenario_specific_data}  # Merge dictionaries, with scenario-specific overwriting scenarios_data
     years = config_data.get('FINANCIAL_ASSUMPTIONS', {}).get('years', 'Not specified')
+    housing_details = config_data.get("HOUSING_DETAILS", {})
+    home_tenure = housing_details.get("home_tenure", "").lower()
+    residence_location = housing_details.get("residence_location", "").lower()
+
     # Log essential config data
     logging.info(f"{'config_data:':<43} {'json'}")
     logging.info(f"{'years:':<43} {years}")
-    logging.info(f"{'residence_location:':<43} {config_data.get('residence_location', 'Not specified')}")
-    logging.info(f"{'home_tenure:':<43} {config_data.get('home_tenure', 'Not specified')}")
+    logging.info(f"{'residence_location:':<43} {residence_location}")
+    logging.info(f"{'home_tenure:':<43} {home_tenure}")
 
     # Safely get team data and log
     logging.debug("Local Scenario Objects")
