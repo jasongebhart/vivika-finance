@@ -1,0 +1,105 @@
+{
+  "KIDS_ACTIVITIES": {
+    "SPORTS": {
+      "SKI_TEAM": {
+        "team_fee": 400,
+        "equipment": 300,
+        "clothing": 150,
+        "lift_passes": 500,
+        "gas": 100,
+        "travel_housing": 476.75
+      },
+      "BASEBALL": {
+        "team_fee_summer": 150,
+        "team_fee_fall": 100,
+        "equipment": 80,
+        "uniforms": 40,
+        "tournament_fees": 60,
+        "travel": 50,
+        "gas": 3.33
+      }
+    }
+  },
+  "UTILITIES": {
+    "electricity": 180,
+    "gas": 120,
+    "water": 65,
+    "internet": 85,
+    "trash": 45,
+    "sewer": 55
+  },
+  "INSURANCE": {
+    "health": 850,
+    "auto": 180,
+    "home": 140,
+    "life": 65,
+    "umbrella": 45
+  },
+  "SUBSCRIPTIONS": {
+    "netflix": 15,
+    "amazon_prime": 15,
+    "spotify": 10,
+    "gym": 85,
+    "software": 25,
+    "news": 20
+  },
+  "TRANSPORTATION": {
+    "car_payment": 450,
+    "gas": 280,
+    "maintenance": 150,
+    "registration": 25,
+    "parking": 120
+  },
+  "LEISURE_ACTIVITIES": {
+    "dining_out": 400,
+    "entertainment": 200,
+    "hobbies": 150,
+    "travel": 300,
+    "books_media": 75
+  },
+  "LIVING_EXPENSES": {
+    "groceries": 800,
+    "clothing": 300,
+    "personal_care": 150,
+    "household_supplies": 100,
+    "medical": 200
+  },
+  "HOUSING_EXPENSES": {
+    "house_maintenance": 250,
+    "monthly_rent": 0,
+    "property_tax": 450,
+    "hoa_fees": 85
+  },
+  "EXCLUDED_EXPENSES": [],
+  "house": {
+    "description": "253 25th Ave.",
+    "cost_basis": 2600000,
+    "closing_costs": 0,
+    "home_improvement": 100000,
+    "value": 3600000,
+    "mortgage_principal": 1711160.99,
+    "commission_rate": 0.06,
+    "annual_growth_rate": 0.035,
+    "interest_rate": 0.02625,
+    "monthly_payment": 8265.21,
+    "payments_made": 40,
+    "number_of_payments": 276,
+    "annual_property_tax": 36599.26,
+    "sell_house": false
+  },
+  "new_house": {  
+    "description": "Future Purchase",
+    "cost_basis": 1200000, 
+    "closing_costs": 0,
+    "home_improvement": 0,
+    "value": 1200000,       
+    "mortgage_principal": 0, 
+    "commission_rate": 0.06,
+    "annual_growth_rate": 0.035,
+    "interest_rate": 0.0,
+    "monthly_payment": 0.0,
+    "payments_made": 0,
+    "number_of_payments": 0,
+    "annual_property_tax": 15000
+  }
+}

@@ -1,0 +1,99 @@
+
+> long-term-finance-planner-modern@2.0.0 dev
+> next dev --turbo
+
+ ⚠ Port 3000 is in use by process 2388, using available port 3001 instead.
+   ▲ Next.js 15.4.4 (Turbopack)
+   - Local:        http://localhost:3001
+   - Network:      http://172.16.0.2:3001
+   - Environments: .env.local
+
+ ✓ Starting...
+ ✓ Ready in 2.6s
+ ○ Compiling /api/scenarios ...
+ ✓ Compiled /api/scenarios in 2.9s
+API Route: Fetching scenarios from backend: http://localhost:8000/api/scenarios
+API Route: Successfully fetched 252 scenarios
+ GET /api/scenarios 200 in 3544ms
+ ✓ Compiled /api/scenarios/[id] in 334ms
+Error: Route "/api/scenarios/[id]" used `params.id`. `params` should be awaited before using its properties. Learn more: https://nextjs.org/docs/messages/sync-dynamic-apis
+    at GET (src\app\api\scenarios\[id]\route.ts:10:30)
+   8 | ) {
+   9 |   try {
+> 10 |     const scenarioId = params.id
+     |                              ^
+  11 |     console.log('API Route: Fetching scenario from backend:', `${API_BASE_URL}/scenarios/${scenarioId}`)
+  12 |     
+  13 |     const response = await fetch(`${API_BASE_URL}/scenarios/${scenarioId}`, {
+API Route: Fetching scenario from backend: http://localhost:8000/api/scenarios/6781a726-64b5-48fd-929f-a9c8237c9e9f
+API Route: Successfully fetched scenario: 6781a726-64b5-48fd-929f-a9c8237c9e9f
+ GET /api/scenarios/6781a726-64b5-48fd-929f-a9c8237c9e9f 200 in 2080ms
+ ○ Compiling / ...
+ ✓ Compiled / in 14.7s
+ApiClient: Initializing with baseURL: http://localhost:8000/api
+useScenarios: Hook called, setting up query...
+Dashboard render:
+- Using data from: mock data
+- Current scenario: none
+- Query loading: true
+- Query error: null
+ GET / 200 in 15977ms
+API Route: Fetching scenarios from backend: http://localhost:8000/api/scenarios
+API Route: Successfully fetched 252 scenarios
+ GET /api/scenarios 200 in 290ms
+API Route: Fetching scenarios from backend: http://localhost:8000/api/scenarios
+API Route: Successfully fetched 252 scenarios
+ GET /api/scenarios 200 in 185ms
+Error: Route "/api/scenarios/[id]" used `params.id`. `params` should be awaited before using its properties. Learn more: https://nextjs.org/docs/messages/sync-dynamic-apis
+    at GET (src\app\api\scenarios\[id]\route.ts:10:30)
+   8 | ) {
+   9 |   try {
+> 10 |     const scenarioId = params.id
+     |                              ^
+  11 |     console.log('API Route: Fetching scenario from backend:', `${API_BASE_URL}/scenarios/${scenarioId}`)
+  12 |     
+  13 |     const response = await fetch(`${API_BASE_URL}/scenarios/${scenarioId}`, {
+API Route: Fetching scenario from backend: http://localhost:8000/api/scenarios/01c41e02-b87f-4f68-882e-f657c0889e2d
+API Route: Successfully fetched scenario: 01c41e02-b87f-4f68-882e-f657c0889e2d
+ GET /api/scenarios/01c41e02-b87f-4f68-882e-f657c0889e2d 200 in 658ms
+Error: Route "/api/scenarios/[id]" used `params.id`. `params` should be awaited before using its properties. Learn more: https://nextjs.org/docs/messages/sync-dynamic-apis
+    at GET (src\app\api\scenarios\[id]\route.ts:10:30)
+   8 | ) {
+   9 |   try {
+> 10 |     const scenarioId = params.id
+     |                              ^
+  11 |     console.log('API Route: Fetching scenario from backend:', `${API_BASE_URL}/scenarios/${scenarioId}`)
+  12 |     
+  13 |     const response = await fetch(`${API_BASE_URL}/scenarios/${scenarioId}`, {
+API Route: Fetching scenario from backend: http://localhost:8000/api/scenarios/01c41e02-b87f-4f68-882e-f657c0889e2d
+API Route: Successfully fetched scenario: 01c41e02-b87f-4f68-882e-f657c0889e2d
+ GET /api/scenarios/01c41e02-b87f-4f68-882e-f657c0889e2d 200 in 369ms
+ ○ Compiling /scenarios/[id] ...
+ ✓ Compiled /scenarios/[id] in 1631ms
+ GET /scenarios/4ac908a6-07ec-4481-a0e2-598d5783e424 200 in 2927ms
+Error: Route "/api/scenarios/[id]" used `params.id`. `params` should be awaited before using its properties. Learn more: https://nextjs.org/docs/messages/sync-dynamic-apis
+    at GET (src\app\api\scenarios\[id]\route.ts:10:30)
+   8 | ) {
+   9 |   try {
+> 10 |     const scenarioId = params.id
+     |                              ^
+  11 |     console.log('API Route: Fetching scenario from backend:', `${API_BASE_URL}/scenarios/${scenarioId}`)
+  12 |     
+  13 |     const response = await fetch(`${API_BASE_URL}/scenarios/${scenarioId}`, {
+API Route: Fetching scenario from backend: http://localhost:8000/api/scenarios/4ac908a6-07ec-4481-a0e2-598d5783e424
+API Route: Successfully fetched scenario: 4ac908a6-07ec-4481-a0e2-598d5783e424
+ GET /api/scenarios/4ac908a6-07ec-4481-a0e2-598d5783e424 200 in 580ms
+ ✓ Compiled in 1140ms
+ ✓ Compiled in 785ms
+Error: Route "/api/scenarios/[id]" used `params.id`. `params` should be awaited before using its properties. Learn more: https://nextjs.org/docs/messages/sync-dynamic-apis
+    at GET (src\app\api\scenarios\[id]\route.ts:10:30)
+   8 | ) {
+   9 |   try {
+> 10 |     const scenarioId = params.id
+     |                              ^
+  11 |     console.log('API Route: Fetching scenario from backend:', `${API_BASE_URL}/scenarios/${scenarioId}`)
+  12 |     
+  13 |     const response = await fetch(`${API_BASE_URL}/scenarios/${scenarioId}`, {
+API Route: Fetching scenario from backend: http://localhost:8000/api/scenarios/4ac908a6-07ec-4481-a0e2-598d5783e424
+API Route: Successfully fetched scenario: 4ac908a6-07ec-4481-a0e2-598d5783e424
+ GET /api/scenarios/4ac908a6-07ec-4481-a0e2-598d5783e424 200 in 1159ms

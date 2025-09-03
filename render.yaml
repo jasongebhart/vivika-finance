@@ -1,0 +1,19 @@
+services:
+  - type: web
+    name: vivikafinance-api
+    env: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT --workers 1
+    healthCheckPath: /api/health
+    envVars:
+      - key: ENVIRONMENT
+        value: production
+      - key: API_HOST
+        value: 0.0.0.0
+      - key: DEBUG
+        value: false
+      - key: DATABASE_URL
+        value: sqlite:///./production.db
+      - key: ALLOWED_ORIGINS
+        value: '["https://vivikafinance.vercel.app"]'

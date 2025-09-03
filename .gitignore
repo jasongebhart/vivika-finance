@@ -21,13 +21,25 @@ reports/
 *.html  
 scenarios/
 logs/
-*.json
 build/
 dist/
 *.egg
 *.so
 *.dll
 *.dylib
+
+# Private data files (financial scenarios)
+private_scenarios.json
+my_scenarios.json
+personal_data.json
+financial_data*.json
+scenarios_backup.json
+*_private.json
+
+# Database files with sensitive data
+scenarios.db
+*.sqlite
+*.sqlite3
 
 # Virtual environment
 venv/
